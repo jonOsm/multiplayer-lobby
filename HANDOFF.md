@@ -15,18 +15,50 @@ A reusable, production-quality Go package for managing multiplayer lobbies in ga
 - Well-documented with GoDoc comments and README
 - Unit tests for core logic and event triggering
 - Usage examples in README
-- Tagged as v1.0.0 (in monorepo)
+- Published as standalone module (v1.0.0)
+- Demo backend and frontend integration complete
 
-## Next Steps
-1. **Extract to Standalone Module/Repo**
-   - Move this directory to its own repository (e.g., github.com/jonosm/multiplayer-lobby)
-   - Run `go mod init github.com/jonosm/multiplayer-lobby` in the new repo
-   - Push to GitHub and tag a release (v1.0.0)
-2. **Update Downstream Projects**
-   - Update all projects (e.g., demo backend) to import the package using the new module path
-   - Run `go get github.com/jonosm/multiplayer-lobby@latest` in those projects
-3. **(Optional) Publish/Promote**
-   - Add to pkg.go.dev, write a blog post, or share in portfolio
+## Next Development Priorities
+
+### 1. **Add Game Starting Functionality** (High Priority)
+**Backend Changes:**
+- Add `start_game` action to WebSocket handler
+- Implement game start validation (all players ready, minimum players)
+- Add lobby state transition from `waiting` → `in_game`
+- Add game session management
+
+**Frontend Changes:**
+- Make "Start Game" button functional
+- Add game mode UI
+- Handle game state transitions
+
+### 2. **Enhanced Lobby Management** (Medium Priority)
+- **Lobby Host/Admin**: Designate lobby creator as host with special privileges
+- **Kick Players**: Allow host to remove players
+- **Lobby Settings**: Allow host to modify lobby settings (max players, privacy)
+- **Lobby Chat**: Basic text chat functionality
+- **Lobby Invites**: Private lobby codes/links
+
+### 3. **Improved User Experience** (Medium Priority)
+- **Real-time Updates**: Better WebSocket event handling for live updates
+- **Player Avatars**: Add avatar/icon support
+- **Lobby Categories**: Tag lobbies by game type
+- **Search/Filter**: Filter lobbies by various criteria
+- **Persistent Sessions**: Remember user preferences
+
+### 4. **Advanced Features** (Lower Priority)
+- **Game Integration**: Hooks for actual game launching
+- **Spectator Mode**: Allow non-playing observers
+- **Tournament Support**: Bracket-style lobby organization
+- **Analytics**: Track lobby usage and player behavior
+- **Mobile Support**: Responsive design improvements
+
+### 5. **Infrastructure & Reliability** (Ongoing)
+- **Error Handling**: More robust error recovery
+- **Connection Management**: Handle disconnections gracefully
+- **Performance**: Optimize for larger numbers of concurrent lobbies
+- **Monitoring**: Add metrics and health checks
+- **Security**: Input validation, rate limiting
 
 ## Best Practices
 - Keep the package generic and decoupled from game logic
@@ -36,9 +68,9 @@ A reusable, production-quality Go package for managing multiplayer lobbies in ga
 - Encourage contributions and feedback if open source
 
 ## Contact / Repo Info
-- Repo: (to be set after extraction, e.g., github.com/jonosm/multiplayer-lobby)
+- Repo: github.com/jonosm/multiplayer-lobby
 - For questions, open an issue or contact the maintainer
 
 ---
 
-**This handoff ensures the next agent can maintain, extend, and publish the multiplayer-lobby package with confidence.** 
+**This handoff ensures the next agent can maintain, extend, and develop the multiplayer-lobby package with confidence.** 
