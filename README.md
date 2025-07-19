@@ -73,4 +73,39 @@ This package uses a **modular, layered architecture** inspired by Clean Architec
 | Extensibility        | Metadata, callbacks, custom logic              |
 | No Networking        | Host app handles transport                     |
 
-This style ensures the package is reusable, testable, and easy to integrate into any Go project. 
+This style ensures the package is reusable, testable, and easy to integrate into any Go project.
+
+## Testing the Demo Backend
+
+The package includes a demo backend that demonstrates WebSocket integration. To test it:
+
+### Prerequisites
+1. Install wscat for WebSocket testing:
+   ```bash
+   npm install -g wscat
+   ```
+
+2. Start the demo backend:
+   ```bash
+   cd lobby-demo/server
+   go run main.go
+   ```
+
+### Manual Testing
+Use wscat to test the WebSocket API:
+```bash
+wscat -c ws://localhost:8080/ws
+```
+
+Then send JSON messages like:
+```json
+{"action": "create_lobby", "name": "TestLobby", "max_players": 4, "public": true}
+{"action": "list_lobbies"}
+{"action": "join_lobby", "lobby_id": "TestLobby", "username": "Alice"}
+```
+
+For complete testing instructions, see [websocket-tests.md](websocket-tests.md).
+
+## Contributing
+
+This package is designed to be easily extensible. Contributions are welcome! 
