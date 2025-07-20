@@ -48,6 +48,9 @@ func (m *LobbyManager) CreateLobby(name string, maxPlayers int, public bool, met
 		Metadata:   metadata,
 	}
 	m.lobbies[id] = lobby
+	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
+		m.Events.OnLobbyStateChange(lobby)
+	}
 	return lobby, nil
 }
 
@@ -69,11 +72,16 @@ func (m *LobbyManager) JoinLobby(lobbyID LobbyID, player *Player) error {
 		}
 	}
 	lobby.Players = append(lobby.Players, player)
-	if m.Events != nil && m.Events.OnPlayerJoin != nil {
-		m.Events.OnPlayerJoin(lobby, player)
-	}
-	if len(lobby.Players) == lobby.MaxPlayers && m.Events != nil && m.Events.OnLobbyFull != nil {
-		m.Events.OnLobbyFull(lobby)
+	if m.Events != nil {
+		if m.Events.OnPlayerJoin != nil {
+			m.Events.OnPlayerJoin(lobby, player)
+		}
+		if len(lobby.Players) == lobby.MaxPlayers && m.Events.OnLobbyFull != nil {
+			m.Events.OnLobbyFull(lobby)
+		}
+		if m.Events.OnLobbyStateChange != nil {
+			m.Events.OnLobbyStateChange(lobby)
+		}
 	}
 	return nil
 }
@@ -113,16 +121,53 @@ func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 		return errors.New("player not in lobby")
 	}
 	lobby.Players = newPlayers
-	if m.Events != nil && m.Events.OnPlayerLeave != nil {
-		m.Events.OnPlayerLeave(lobby, leavingPlayer)
-	}
-
-	// If lobby becomes empty, delete it
-	if len(lobby.Players) == 0 {
-		if m.Events != nil && m.Events.OnLobbyEmpty != nil {
+	if m.Events != nil {
+		if m.Events.OnPlayerLeave != nil {
+			m.Events.OnPlayerLeave(lobby, leavingPlayer)
+		}
+		if len(lobby.Players) == 0 && m.Events.OnLobbyEmpty != nil {
 			m.Events.OnLobbyEmpty(lobby)
 		}
+		if m.Events.OnLobbyStateChange != nil {
+			m.Events.OnLobbyStateChange(lobby)
+		}
+	}
+	// If lobby becomes empty, delete it
+	if len(lobby.Players) == 0 {
 		delete(m.lobbies, lobbyID)
+	}
+	return nil
+}
+
+// Add a method to toggle ready status and trigger events
+func (m *LobbyManager) SetPlayerReady(lobbyID LobbyID, playerID PlayerID, ready bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	lobby, exists := m.lobbies[lobbyID]
+	if !exists {
+		return errors.New("lobby does not exist")
+	}
+	var targetPlayer *Player
+	for _, p := range lobby.Players {
+		if p.ID == playerID {
+			targetPlayer = p
+			break
+		}
+	}
+	if targetPlayer == nil {
+		return errors.New("player not in lobby")
+	}
+	if targetPlayer.Ready == ready {
+		return nil // No change
+	}
+	targetPlayer.Ready = ready
+	if m.Events != nil {
+		if m.Events.OnPlayerReady != nil {
+			m.Events.OnPlayerReady(lobby, targetPlayer)
+		}
+		if m.Events.OnLobbyStateChange != nil {
+			m.Events.OnLobbyStateChange(lobby)
+		}
 	}
 	return nil
 }
