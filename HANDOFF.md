@@ -59,6 +59,7 @@ A reusable, production-quality Go package for managing multiplayer lobbies in ga
 - **Performance**: Optimize for larger numbers of concurrent lobbies
 - **Monitoring**: Add metrics and health checks
 - **Security**: Input validation, rate limiting
+- **Timeout Management**: Implement connection timeouts, lobby expiration, and cleanup
 
 ## Best Practices
 - Keep the package generic and decoupled from game logic

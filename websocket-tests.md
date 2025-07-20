@@ -44,7 +44,17 @@ wscat -c ws://localhost:8080/ws
 {"action": "lobby_list", "lobbies": ["TestLobby"]}
 ```
 
-### 4. Join a Lobby
+### 4. Get Lobby Information (without joining)
+```json
+{"action": "get_lobby_info", "lobby_id": "TestLobby"}
+```
+
+**Expected Response:**
+```json
+{"action": "lobby_info", "lobby_id": "TestLobby", "name": "TestLobby", "players": [], "state": "waiting", "max_players": 4, "public": true}
+```
+
+### 5. Join a Lobby
 ```json
 {"action": "join_lobby", "lobby_id": "TestLobby", "username": "Alice"}
 ```
@@ -54,7 +64,7 @@ wscat -c ws://localhost:8080/ws
 {"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": false}], "state": "waiting", "metadata": null}
 ```
 
-### 5. Set Player Ready Status
+### 6. Set Player Ready Status
 ```json
 {"action": "set_ready", "lobby_id": "TestLobby", "username": "Alice", "ready": true}
 ```
@@ -64,7 +74,7 @@ wscat -c ws://localhost:8080/ws
 {"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": true}], "state": "waiting", "metadata": null}
 ```
 
-### 6. Join with Another Player
+### 7. Join with Another Player
 ```json
 {"action": "join_lobby", "lobby_id": "TestLobby", "username": "Bob"}
 ```
@@ -74,14 +84,44 @@ wscat -c ws://localhost:8080/ws
 {"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": true}, {"username": "Bob", "ready": false}], "state": "waiting", "metadata": null}
 ```
 
-### 7. Leave a Lobby
+### 8. Set Second Player Ready
+```json
+{"action": "set_ready", "lobby_id": "TestLobby", "username": "Bob", "ready": true}
+```
+
+**Expected Response:**
+```json
+{"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": true}, {"username": "Bob", "ready": true}], "state": "waiting", "metadata": null}
+```
+
+### 9. Start the Game
+```json
+{"action": "start_game", "lobby_id": "TestLobby", "username": "Alice"}
+```
+
+**Expected Response:**
+```json
+{"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": true}, {"username": "Bob", "ready": true}], "state": "in_game", "metadata": null}
+```
+
+### 10. Get Lobby Info After Game Started
+```json
+{"action": "get_lobby_info", "lobby_id": "TestLobby"}
+```
+
+**Expected Response:**
+```json
+{"action": "lobby_info", "lobby_id": "TestLobby", "name": "TestLobby", "players": [{"username": "Alice", "ready": true}, {"username": "Bob", "ready": true}], "state": "in_game", "max_players": 4, "public": true}
+```
+
+### 11. Leave a Lobby
 ```json
 {"action": "leave_lobby", "lobby_id": "TestLobby", "username": "Bob"}
 ```
 
 **Expected Response:**
 ```json
-{"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": true}], "state": "waiting", "metadata": null}
+{"action": "lobby_state", "lobby_id": "TestLobby", "players": [{"username": "Alice", "ready": true}], "state": "in_game", "metadata": null}
 ```
 
 ## Complete Test Session
@@ -96,10 +136,13 @@ wscat -c ws://localhost:8080/ws
 
 {"action": "create_lobby", "name": "GameRoom", "max_players": 3, "public": true}
 {"action": "list_lobbies"}
+{"action": "get_lobby_info", "lobby_id": "GameRoom"}
 {"action": "join_lobby", "lobby_id": "GameRoom", "username": "Player1"}
 {"action": "set_ready", "lobby_id": "GameRoom", "username": "Player1", "ready": true}
 {"action": "join_lobby", "lobby_id": "GameRoom", "username": "Player2"}
 {"action": "set_ready", "lobby_id": "GameRoom", "username": "Player2", "ready": true}
+{"action": "start_game", "lobby_id": "GameRoom", "username": "Player1"}
+{"action": "get_lobby_info", "lobby_id": "GameRoom"}
 {"action": "leave_lobby", "lobby_id": "GameRoom", "username": "Player1"}
 ```
 
@@ -132,6 +175,49 @@ wscat -c ws://localhost:8080/ws
 **Expected Response for second join:**
 ```json
 {"action": "error", "message": "lobby is full"}
+```
+
+### Test Starting Game with Insufficient Players
+```json
+{"action": "create_lobby", "name": "SoloLobby", "max_players": 4, "public": true}
+{"action": "join_lobby", "lobby_id": "SoloLobby", "username": "SoloPlayer"}
+{"action": "set_ready", "lobby_id": "SoloLobby", "username": "SoloPlayer", "ready": true}
+{"action": "start_game", "lobby_id": "SoloLobby", "username": "SoloPlayer"}
+```
+**Expected Response:**
+```json
+{"action": "error", "message": "need at least 2 players to start the game"}
+```
+
+### Test Starting Game with Unready Players
+```json
+{"action": "create_lobby", "name": "UnreadyLobby", "max_players": 4, "public": true}
+{"action": "join_lobby", "lobby_id": "UnreadyLobby", "username": "Player1"}
+{"action": "join_lobby", "lobby_id": "UnreadyLobby", "username": "Player2"}
+{"action": "set_ready", "lobby_id": "UnreadyLobby", "username": "Player1", "ready": true}
+{"action": "start_game", "lobby_id": "UnreadyLobby", "username": "Player1"}
+```
+**Expected Response:**
+```json
+{"action": "error", "message": "all players must be ready to start the game"}
+```
+
+### Test Starting Game from Non-existent Lobby
+```json
+{"action": "start_game", "lobby_id": "NonExistent", "username": "Alice"}
+```
+**Expected Response:**
+```json
+{"action": "error", "message": "lobby not found"}
+```
+
+### Test Getting Info from Non-existent Lobby
+```json
+{"action": "get_lobby_info", "lobby_id": "NonExistent"}
+```
+**Expected Response:**
+```json
+{"action": "error", "message": "lobby not found"}
 ```
 
 ## Troubleshooting

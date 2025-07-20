@@ -78,8 +78,21 @@ func (m *LobbyManager) JoinLobby(lobbyID LobbyID, player *Player) error {
 	return nil
 }
 
+// DeleteLobby removes a lobby from the manager.
+// Returns an error if the lobby does not exist.
+func (m *LobbyManager) DeleteLobby(lobbyID LobbyID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.lobbies[lobbyID]; !exists {
+		return errors.New("lobby does not exist")
+	}
+	delete(m.lobbies, lobbyID)
+	return nil
+}
+
 // LeaveLobby removes a player from the lobby and triggers events.
 // Returns an error if the lobby or player does not exist.
+// If the lobby becomes empty after the player leaves, it will be automatically deleted.
 func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -103,8 +116,13 @@ func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 	if m.Events != nil && m.Events.OnPlayerLeave != nil {
 		m.Events.OnPlayerLeave(lobby, leavingPlayer)
 	}
-	if len(lobby.Players) == 0 && m.Events != nil && m.Events.OnLobbyEmpty != nil {
-		m.Events.OnLobbyEmpty(lobby)
+
+	// If lobby becomes empty, delete it
+	if len(lobby.Players) == 0 {
+		if m.Events != nil && m.Events.OnLobbyEmpty != nil {
+			m.Events.OnLobbyEmpty(lobby)
+		}
+		delete(m.lobbies, lobbyID)
 	}
 	return nil
 }
