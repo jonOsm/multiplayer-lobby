@@ -175,6 +175,7 @@ func (m *LobbyManager) SetPlayerReady(lobbyID LobbyID, playerID PlayerID, ready 
 			m.Events.OnLobbyStateChange(lobby)
 		}
 	}
+	m.broadcastLobbyState(lobby)
 	return nil
 }
 
