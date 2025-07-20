@@ -179,6 +179,25 @@ func (m *LobbyManager) SetPlayerReady(lobbyID LobbyID, playerID PlayerID, ready 
 	return nil
 }
 
+// SetLobbyState updates the state of a lobby and broadcasts the change
+func (m *LobbyManager) SetLobbyState(lobbyID LobbyID, state LobbyState) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	lobby, exists := m.lobbies[lobbyID]
+	if !exists {
+		return errors.New("lobby does not exist")
+	}
+	if lobby.State == state {
+		return nil // No change
+	}
+	lobby.State = state
+	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
+		m.Events.OnLobbyStateChange(lobby)
+	}
+	m.broadcastLobbyState(lobby)
+	return nil
+}
+
 // ListLobbies returns all lobbies managed by the LobbyManager.
 func (m *LobbyManager) ListLobbies() []*Lobby {
 	m.mu.Lock()
