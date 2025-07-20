@@ -27,4 +27,5 @@ type Lobby struct {
 	Players    []*Player              // List of players in the lobby
 	State      LobbyState             // Current state of the lobby
 	Metadata   map[string]interface{} // Custom fields for extensibility
+	OwnerID    string                 // User ID of the lobby creator/owner
 }

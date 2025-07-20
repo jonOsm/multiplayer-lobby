@@ -20,7 +20,8 @@ type LobbyEvents struct {
 	Broadcaster Broadcaster // Optional: set by the application
 
 	// Message builder for lobby state broadcasts
-	LobbyStateBuilder func(lobby *Lobby) interface{} // Optional: set by the application
+	LobbyStateBuilder func(lobby *Lobby) interface{}         // Optional: set by the application
+	CanStartGame      func(lobby *Lobby, userID string) bool // Optional: set by the application
 }
 
 // BroadcastToLobby sends a message to all players in the lobby using the registered Broadcaster.

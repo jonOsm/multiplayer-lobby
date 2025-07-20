@@ -30,7 +30,7 @@ func NewLobbyManagerWithEvents(events *LobbyEvents) *LobbyManager {
 
 // CreateLobby creates a new lobby with the given parameters.
 // Returns an error if a lobby with the same ID already exists.
-func (m *LobbyManager) CreateLobby(name string, maxPlayers int, public bool, metadata map[string]interface{}) (*Lobby, error) {
+func (m *LobbyManager) CreateLobby(name string, maxPlayers int, public bool, metadata map[string]interface{}, ownerID string) (*Lobby, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	id := LobbyID(name) // For now, use name as ID; can be replaced with UUID
@@ -46,6 +46,7 @@ func (m *LobbyManager) CreateLobby(name string, maxPlayers int, public bool, met
 		Players:    []*Player{},
 		State:      LobbyWaiting,
 		Metadata:   metadata,
+		OwnerID:    ownerID,
 	}
 	m.lobbies[id] = lobby
 	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
@@ -191,6 +192,36 @@ func (m *LobbyManager) SetLobbyState(lobbyID LobbyID, state LobbyState) error {
 		return nil // No change
 	}
 	lobby.State = state
+	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
+		m.Events.OnLobbyStateChange(lobby)
+	}
+	m.broadcastLobbyState(lobby)
+	return nil
+}
+
+// StartGame sets the lobby state to in-game if the user is allowed to start the game
+func (m *LobbyManager) StartGame(lobbyID LobbyID, userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	lobby, exists := m.lobbies[lobbyID]
+	if !exists {
+		return errors.New("lobby does not exist")
+	}
+	// Check permission
+	canStart := false
+	if m.Events != nil && m.Events.CanStartGame != nil {
+		canStart = m.Events.CanStartGame(lobby, userID)
+	} else {
+		// Default: only owner can start
+		canStart = (lobby.OwnerID == userID)
+	}
+	if !canStart {
+		return errors.New("not allowed to start the game")
+	}
+	if lobby.State == LobbyInGame {
+		return errors.New("game already started")
+	}
+	lobby.State = LobbyInGame
 	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
 		m.Events.OnLobbyStateChange(lobby)
 	}
