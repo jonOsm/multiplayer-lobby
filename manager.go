@@ -51,6 +51,8 @@ func (m *LobbyManager) CreateLobby(name string, maxPlayers int, public bool, met
 	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
 		m.Events.OnLobbyStateChange(lobby)
 	}
+	// Automatically broadcast lobby state
+	m.broadcastLobbyState(lobby)
 	return lobby, nil
 }
 
@@ -83,6 +85,8 @@ func (m *LobbyManager) JoinLobby(lobbyID LobbyID, player *Player) error {
 			m.Events.OnLobbyStateChange(lobby)
 		}
 	}
+	// Automatically broadcast lobby state
+	m.broadcastLobbyState(lobby)
 	return nil
 }
 
@@ -132,6 +136,8 @@ func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 			m.Events.OnLobbyStateChange(lobby)
 		}
 	}
+	// Automatically broadcast lobby state
+	m.broadcastLobbyState(lobby)
 	// If lobby becomes empty, delete it
 	if len(lobby.Players) == 0 {
 		delete(m.lobbies, lobbyID)
@@ -189,4 +195,20 @@ func (m *LobbyManager) GetLobbyByID(id LobbyID) (*Lobby, bool) {
 	defer m.mu.Unlock()
 	lobby, exists := m.lobbies[id]
 	return lobby, exists
+}
+
+// Helper to broadcast lobby state after a change
+func (m *LobbyManager) broadcastLobbyState(lobby *Lobby) {
+	if m.Events == nil || m.Events.Broadcaster == nil {
+		return
+	}
+	var msg interface{}
+	if m.Events.LobbyStateBuilder != nil {
+		msg = m.Events.LobbyStateBuilder(lobby)
+	} else {
+		msg = lobby
+	}
+	for _, player := range lobby.Players {
+		m.Events.Broadcaster(string(player.ID), msg)
+	}
 }
