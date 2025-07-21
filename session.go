@@ -110,9 +110,11 @@ func (sm *SessionManager) RemoveSession(userID string) {
 	defer sm.mu.Unlock()
 
 	if session, exists := sm.sessions[userID]; exists {
-		session.Active = false
-		if sm.OnSessionRemoved != nil {
-			sm.OnSessionRemoved(session)
+		if session.Active {
+			session.Active = false
+			if sm.OnSessionRemoved != nil {
+				sm.OnSessionRemoved(session)
+			}
 		}
 	}
 }
