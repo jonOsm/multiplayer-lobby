@@ -19,6 +19,11 @@ type SessionManager struct {
 	mu           sync.RWMutex
 	sessions     map[string]*UserSession // userID -> session
 	usernameToID map[string]string       // username -> userID
+
+	// Session event hooks
+	OnSessionCreated     func(session *UserSession)
+	OnSessionReconnected func(session *UserSession)
+	OnSessionRemoved     func(session *UserSession)
 }
 
 // NewSessionManager creates a new session manager
@@ -51,6 +56,10 @@ func (sm *SessionManager) CreateSession(username string) *UserSession {
 	sm.sessions[userID] = session
 	sm.usernameToID[username] = userID
 
+	if sm.OnSessionCreated != nil {
+		sm.OnSessionCreated(session)
+	}
+
 	return session
 }
 
@@ -67,6 +76,10 @@ func (sm *SessionManager) CreateSessionWithID(userID string, username string) *U
 
 	sm.sessions[userID] = session
 	sm.usernameToID[username] = userID
+
+	if sm.OnSessionCreated != nil {
+		sm.OnSessionCreated(session)
+	}
 
 	return session
 }
@@ -98,6 +111,9 @@ func (sm *SessionManager) RemoveSession(userID string) {
 
 	if session, exists := sm.sessions[userID]; exists {
 		session.Active = false
+		if sm.OnSessionRemoved != nil {
+			sm.OnSessionRemoved(session)
+		}
 	}
 }
 
@@ -126,6 +142,9 @@ func (sm *SessionManager) ReconnectSession(username string) (*UserSession, bool)
 		return nil, false
 	}
 	session.Active = true
+	if sm.OnSessionReconnected != nil {
+		sm.OnSessionReconnected(session)
+	}
 	return session, true
 }
 
