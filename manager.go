@@ -141,6 +141,9 @@ func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 	m.broadcastLobbyState(lobby)
 	// If lobby becomes empty, delete it
 	if len(lobby.Players) == 0 {
+		if m.Events != nil && m.Events.OnLobbyDeleted != nil {
+			m.Events.OnLobbyDeleted(lobby)
+		}
 		delete(m.lobbies, lobbyID)
 	}
 	return nil

@@ -12,6 +12,7 @@ type LobbyEvents struct {
 	OnPlayerReady func(lobby *Lobby, player *Player) // Called when a player toggles ready status
 	OnLobbyFull   func(lobby *Lobby)                 // Called when a lobby reaches max players
 	OnLobbyEmpty  func(lobby *Lobby)                 // Called when a lobby becomes empty
+	OnLobbyDeleted func(lobby *Lobby)                // Called when a lobby is deleted
 
 	// Broad event
 	OnLobbyStateChange func(lobby *Lobby) // Called on any lobby state change (join, leave, ready, etc.)

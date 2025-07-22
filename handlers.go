@@ -20,23 +20,82 @@ func RegisterUserHandler(deps *HandlerDeps) MessageHandler {
 			return conn.WriteJSON(ErrInvalidMessage("register_user").ToErrorResponse())
 		}
 
-		if deps.SessionManager.IsUsernameTaken(req.Username) {
-			log.Printf("Username %s is already active, cannot reconnect", req.Username)
-			return conn.WriteJSON(ErrUsernameTaken(req.Username).ToErrorResponse())
-		}
+		// Check if there's an existing session for this username
+		if existingSession, exists := deps.SessionManager.GetSessionByUsername(req.Username); exists {
+			// If user is trying to reconnect, assume their previous session is no longer valid
+			// This handles cases where the browser tab was closed abruptly
+			log.Printf("Found existing session for %s, reconnecting", req.Username)
 
-		if existingSession, exists := deps.SessionManager.GetSessionByUsername(req.Username); exists && !existingSession.Active {
-			session, _ := deps.SessionManager.ReconnectSession(req.Username)
-			if deps.ConnToUserID != nil {
+			// Force remove the old session to ensure clean state
+			deps.SessionManager.ForceRemoveSession(existingSession.ID)
+
+			// Create a new session with the same username
+			session := deps.SessionManager.CreateSession(req.Username)
+
+						if deps.ConnToUserID != nil {
 				deps.ConnToUserID[conn] = session.ID
 			}
-			return conn.WriteJSON(RegisterUserResponse{
+			
+			// Send user_registered response first
+			registerResponse := RegisterUserResponse{
 				Action:   "user_registered",
 				UserID:   session.ID,
 				Username: session.Username,
-			})
+			}
+			
+			// Restore lobby membership if the user was in a lobby
+			if existingSession.LobbyID != "" {
+				session.LobbyID = existingSession.LobbyID
+				
+				// Check if lobby still exists and try to rejoin
+				lobby, exists := deps.LobbyManager.GetLobbyByID(LobbyID(existingSession.LobbyID))
+				if exists {
+					// Check if player is still in the lobby
+					playerStillInLobby := false
+					for _, p := range lobby.Players {
+						if p.Username == req.Username {
+							playerStillInLobby = true
+							break
+						}
+					}
+					
+					if !playerStillInLobby {
+						// Player was disconnected, rejoin them
+						player := &Player{ID: PlayerID(session.ID), Username: session.Username}
+						err := deps.LobbyManager.JoinLobby(LobbyID(existingSession.LobbyID), player)
+						if err == nil {
+							// Send both responses: user_registered first, then lobby_state
+							if err := conn.WriteJSON(registerResponse); err != nil {
+								return err
+							}
+							// Send lobby state response to trigger navigation back to lobby
+							responseBuilder := NewResponseBuilder(deps.LobbyManager)
+							lobbyState := responseBuilder.BuildLobbyStateResponse(lobby)
+							return conn.WriteJSON(lobbyState)
+						} else {
+							// Failed to rejoin, clear the lobby ID
+							deps.SessionManager.ClearLobbyID(session.ID)
+						}
+					} else {
+						// Player is still in lobby, send both responses
+						if err := conn.WriteJSON(registerResponse); err != nil {
+							return err
+						}
+						// Send lobby state response
+						responseBuilder := NewResponseBuilder(deps.LobbyManager)
+						lobbyState := responseBuilder.BuildLobbyStateResponse(lobby)
+						return conn.WriteJSON(lobbyState)
+					}
+				} else {
+					// Lobby no longer exists, clear the lobby ID
+					deps.SessionManager.ClearLobbyID(session.ID)
+				}
+			}
+			
+			return conn.WriteJSON(registerResponse)
 		}
 
+		// Create new session for new user
 		session := deps.SessionManager.CreateSession(req.Username)
 		if deps.ConnToUserID != nil {
 			deps.ConnToUserID[conn] = session.ID
@@ -74,6 +133,9 @@ func CreateLobbyHandler(deps *HandlerDeps) MessageHandler {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, "failed to join creator to lobby: "+err.Error()).ToErrorResponse())
 		}
 
+		// Track lobby membership in session
+		deps.SessionManager.SetLobbyID(session.ID, string(createdLobby.ID))
+
 		// Send lobby state response to confirm creation and trigger navigation
 		responseBuilder := NewResponseBuilder(deps.LobbyManager)
 		lobbyState := responseBuilder.BuildLobbyStateResponse(createdLobby)
@@ -97,6 +159,9 @@ func JoinLobbyHandler(deps *HandlerDeps) MessageHandler {
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
+
+		// Track lobby membership in session
+		deps.SessionManager.SetLobbyID(session.ID, req.LobbyID)
 
 		// Send lobby state response to confirm join and trigger navigation
 		lobby, exists := deps.LobbyManager.GetLobbyByID(LobbyID(req.LobbyID))
@@ -124,6 +189,9 @@ func LeaveLobbyHandler(deps *HandlerDeps) MessageHandler {
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
+
+		// Clear lobby membership in session
+		deps.SessionManager.ClearLobbyID(session.ID)
 
 		// Send a response to confirm the player has left the lobby
 		// This will trigger the client to update the UI and show the lobby list
@@ -230,7 +298,8 @@ func LogoutHandler(deps *HandlerDeps) MessageHandler {
 				}
 			}
 		}
-		// Remove the session
+		// Clear lobby membership and remove the session
+		deps.SessionManager.ClearLobbyID(req.UserID)
 		deps.SessionManager.RemoveSession(req.UserID)
 		return nil
 	}
