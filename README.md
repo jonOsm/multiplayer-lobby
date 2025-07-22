@@ -249,7 +249,15 @@ lobbies := manager.ListLobbies()
 // Create message router
 router := lobby.NewMessageRouter()
 
-// Register handlers using type-safe action constants
+// Option 1: Automatic setup (recommended)
+router := lobby.NewMessageRouter()
+router.SetupDefaultHandlersWithCustom(deps, &lobby.HandlerOptions{
+    GameStartValidator: validateGameStart,
+    ResponseBuilder:    lobby.NewResponseBuilder(manager),
+})
+
+// Option 2: Manual setup (for advanced customization)
+router := lobby.NewMessageRouter()
 router.Handle(lobby.ActionRegisterUser, lobby.RegisterUserHandler(deps))
 router.Handle(lobby.ActionCreateLobby, lobby.CreateLobbyHandler(deps))
 router.Handle(lobby.ActionJoinLobby, lobby.JoinLobbyHandler(deps))

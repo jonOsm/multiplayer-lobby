@@ -57,6 +57,55 @@ func (r *MessageRouter) Use(mw Middleware) {
 	r.middleware = append(r.middleware, mw)
 }
 
+// SetupDefaultHandlers automatically registers all standard lobby handlers.
+// This is the recommended way to set up the router - no manual wiring needed!
+func (r *MessageRouter) SetupDefaultHandlers(deps *HandlerDeps) {
+	r.Handle(ActionRegisterUser, RegisterUserHandler(deps))
+	r.Handle(ActionCreateLobby, CreateLobbyHandler(deps))
+	r.Handle(ActionJoinLobby, JoinLobbyHandler(deps))
+	r.Handle(ActionLeaveLobby, LeaveLobbyHandler(deps))
+	r.Handle(ActionSetReady, SetReadyHandler(deps))
+	r.Handle(ActionListLobbies, ListLobbiesHandler(deps))
+	r.Handle(ActionStartGame, StartGameHandler(deps, nil))       // Default validation
+	r.Handle(ActionGetLobbyInfo, GetLobbyInfoHandler(deps, nil)) // Default response builder
+	r.Handle(ActionLogout, LogoutHandler(deps))
+}
+
+// SetupDefaultHandlersWithCustom validates and sets up handlers with custom functions.
+// Use this when you need custom game start validation or response building.
+func (r *MessageRouter) SetupDefaultHandlersWithCustom(deps *HandlerDeps, options *HandlerOptions) {
+	r.Handle(ActionRegisterUser, RegisterUserHandler(deps))
+	r.Handle(ActionCreateLobby, CreateLobbyHandler(deps))
+	r.Handle(ActionJoinLobby, JoinLobbyHandler(deps))
+	r.Handle(ActionLeaveLobby, LeaveLobbyHandler(deps))
+	r.Handle(ActionSetReady, SetReadyHandler(deps))
+	r.Handle(ActionListLobbies, ListLobbiesHandler(deps))
+
+	// Use custom validation if provided, otherwise use default
+	gameStartValidator := options.GameStartValidator
+	if gameStartValidator == nil {
+		gameStartValidator = func(l *Lobby, username string) error { return nil }
+	}
+	r.Handle(ActionStartGame, StartGameHandler(deps, gameStartValidator))
+
+	// Use custom response builder if provided, otherwise use default
+	responseBuilder := options.ResponseBuilder
+	if responseBuilder == nil {
+		responseBuilder = NewResponseBuilder(deps.LobbyManager)
+	}
+	r.Handle(ActionGetLobbyInfo, GetLobbyInfoHandler(deps, func(l *Lobby) LobbyInfoResponse {
+		return responseBuilder.BuildLobbyInfoResponse(l)
+	}))
+
+	r.Handle(ActionLogout, LogoutHandler(deps))
+}
+
+// HandlerOptions allows customization of specific handlers
+type HandlerOptions struct {
+	GameStartValidator func(*Lobby, string) error
+	ResponseBuilder    *ResponseBuilder
+}
+
 // Dispatch parses and routes a raw message to the appropriate handler.
 func (r *MessageRouter) Dispatch(conn Conn, rawMsg []byte) error {
 	var msg IncomingMessage
