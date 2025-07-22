@@ -4,6 +4,19 @@ import (
 	"encoding/json"
 )
 
+// Action constants for type safety and IDE support
+const (
+	ActionRegisterUser = "register_user"
+	ActionCreateLobby  = "create_lobby"
+	ActionJoinLobby    = "join_lobby"
+	ActionLeaveLobby   = "leave_lobby"
+	ActionSetReady     = "set_ready"
+	ActionListLobbies  = "list_lobbies"
+	ActionStartGame    = "start_game"
+	ActionGetLobbyInfo = "get_lobby_info"
+	ActionLogout       = "logout"
+)
+
 // Conn is a minimal interface for sending JSON responses, transport-agnostic.
 type Conn interface {
 	WriteJSON(v interface{}) error
