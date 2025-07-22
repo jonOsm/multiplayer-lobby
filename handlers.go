@@ -124,7 +124,14 @@ func LeaveLobbyHandler(deps *HandlerDeps) MessageHandler {
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
-		return nil
+
+		// Send a response to confirm the player has left the lobby
+		// This will trigger the client to update the UI and show the lobby list
+		return conn.WriteJSON(map[string]interface{}{
+			"action":   "lobby_left",
+			"lobby_id": req.LobbyID,
+			"user_id":  session.ID,
+		})
 	}
 }
 
