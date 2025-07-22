@@ -2,7 +2,6 @@ package lobby
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // Conn is a minimal interface for sending JSON responses, transport-agnostic.
@@ -49,11 +48,11 @@ func (r *MessageRouter) Use(mw Middleware) {
 func (r *MessageRouter) Dispatch(conn Conn, rawMsg []byte) error {
 	var msg IncomingMessage
 	if err := json.Unmarshal(rawMsg, &msg); err != nil {
-		return conn.WriteJSON(map[string]interface{}{"action": "error", "message": "invalid message format"})
+		return conn.WriteJSON(ErrInvalidMessage("").ToErrorResponse())
 	}
 	handler, ok := r.handlers[msg.Action]
 	if !ok {
-		return conn.WriteJSON(map[string]interface{}{"action": "error", "message": fmt.Sprintf("unknown action: %s", msg.Action)})
+		return conn.WriteJSON(ErrUnknownAction(msg.Action).ToErrorResponse())
 	}
 	// Apply middleware chain
 	finalHandler := handler

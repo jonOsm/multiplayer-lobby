@@ -29,7 +29,7 @@ func (r *InMemoryLobbyRepo) CreateLobby(lobby *Lobby) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.lobbies[lobby.ID]; exists {
-		return ErrLobbyExists
+		return NewLobbyError(ErrorCodeLobbyExists, "Lobby already exists")
 	}
 	r.lobbies[lobby.ID] = lobby
 	return nil
@@ -59,7 +59,7 @@ func (r *InMemoryLobbyRepo) UpdateLobby(lobby *Lobby) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.lobbies[lobby.ID]; !exists {
-		return ErrLobbyNotFound
+		return ErrLobbyNotFound(string(lobby.ID))
 	}
 	r.lobbies[lobby.ID] = lobby
 	return nil
@@ -70,22 +70,8 @@ func (r *InMemoryLobbyRepo) DeleteLobby(id LobbyID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.lobbies[id]; !exists {
-		return ErrLobbyNotFound
+		return ErrLobbyNotFound(string(id))
 	}
 	delete(r.lobbies, id)
 	return nil
 }
-
-// Error variables for common repo errors.
-var (
-	ErrLobbyExists   = &RepoError{"lobby already exists"}
-	ErrLobbyNotFound = &RepoError{"lobby not found"}
-)
-
-// RepoError represents a repository error.
-type RepoError struct {
-	msg string
-}
-
-// Error returns the error message.
-func (e *RepoError) Error() string { return e.msg }
