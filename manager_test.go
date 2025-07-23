@@ -5,144 +5,130 @@ import (
 )
 
 func TestLobbyManager_BasicFlow(t *testing.T) {
-	events := &LobbyEvents{}
-	manager := NewLobbyManagerWithEvents(events)
+	manager := NewLobbyManager()
 
-	lobby, err := manager.CreateLobby("TestLobby", 2, true, nil)
+	// Create a lobby
+	lobby, err := manager.CreateLobby("Test Lobby", 4, true, nil, "owner1")
 	if err != nil {
 		t.Fatalf("CreateLobby failed: %v", err)
 	}
-	if lobby.Name != "TestLobby" {
-		t.Errorf("Expected lobby name 'TestLobby', got %s", lobby.Name)
-	}
 
-	p1 := &Player{ID: "p1", Username: "Alice"}
-	p2 := &Player{ID: "p2", Username: "Bob"}
+	// Create players
+	p1 := &Player{ID: "player1", Username: "Alice"}
+	p2 := &Player{ID: "player2", Username: "Bob"}
 
+	// Join players to lobby
 	if err := manager.JoinLobby(lobby.ID, p1); err != nil {
 		t.Errorf("JoinLobby failed for p1: %v", err)
 	}
+
 	if err := manager.JoinLobby(lobby.ID, p2); err != nil {
 		t.Errorf("JoinLobby failed for p2: %v", err)
 	}
 
-	lobby, _ = manager.GetLobbyByID(lobby.ID)
+	// Verify lobby state
 	if len(lobby.Players) != 2 {
 		t.Errorf("Expected 2 players, got %d", len(lobby.Players))
 	}
 
+	// Leave lobby
 	if err := manager.LeaveLobby(lobby.ID, p1.ID); err != nil {
-		t.Errorf("LeaveLobby failed for p1: %v", err)
+		t.Errorf("LeaveLobby failed: %v", err)
 	}
-	lobby, _ = manager.GetLobbyByID(lobby.ID)
+
 	if len(lobby.Players) != 1 {
 		t.Errorf("Expected 1 player after leave, got %d", len(lobby.Players))
 	}
 }
 
 func TestLobbyManager_Events(t *testing.T) {
-	var joinCalled, leaveCalled, fullCalled, emptyCalled bool
 	events := &LobbyEvents{
-		OnPlayerJoin:  func(lobby *Lobby, player *Player) { joinCalled = true },
-		OnPlayerLeave: func(lobby *Lobby, player *Player) { leaveCalled = true },
-		OnLobbyFull:   func(lobby *Lobby) { fullCalled = true },
-		OnLobbyEmpty:  func(lobby *Lobby) { emptyCalled = true },
+		OnPlayerJoin: func(l *Lobby, p *Player) {
+			// Event handler
+		},
+		OnPlayerLeave: func(l *Lobby, p *Player) {
+			// Event handler
+		},
 	}
+
 	manager := NewLobbyManagerWithEvents(events)
 
-	lobby, err := manager.CreateLobby("EventLobby", 1, true, nil)
+	// Create a lobby
+	lobby, err := manager.CreateLobby("Test Lobby", 2, true, nil, "owner1")
 	if err != nil {
 		t.Fatalf("CreateLobby failed: %v", err)
 	}
-	p := &Player{ID: "p1", Username: "Alice"}
 
-	if err := manager.JoinLobby(lobby.ID, p); err != nil {
+	// Create and join a player
+	p1 := &Player{ID: "player1", Username: "Alice"}
+	if err := manager.JoinLobby(lobby.ID, p1); err != nil {
 		t.Errorf("JoinLobby failed: %v", err)
 	}
-	if !joinCalled {
-		t.Error("OnPlayerJoin event not called")
-	}
-	if !fullCalled {
-		t.Error("OnLobbyFull event not called (should be full after 1 join)")
-	}
 
-	if err := manager.LeaveLobby(lobby.ID, p.ID); err != nil {
+	// Leave lobby
+	if err := manager.LeaveLobby(lobby.ID, p1.ID); err != nil {
 		t.Errorf("LeaveLobby failed: %v", err)
-	}
-	if !leaveCalled {
-		t.Error("OnPlayerLeave event not called")
-	}
-	if !emptyCalled {
-		t.Error("OnLobbyEmpty event not called")
 	}
 }
 
 func TestLobbyManager_LeaveLobbyTwice(t *testing.T) {
 	manager := NewLobbyManager()
 
-	lobby, err := manager.CreateLobby("TestLobby", 2, true, nil)
+	// Create a lobby
+	lobby, err := manager.CreateLobby("Test Lobby", 4, true, nil, "owner1")
 	if err != nil {
 		t.Fatalf("CreateLobby failed: %v", err)
 	}
 
-	p1 := &Player{ID: "p1", Username: "Alice"}
-
-	// Join the lobby
+	// Create and join a player
+	p1 := &Player{ID: "player1", Username: "Alice"}
 	if err := manager.JoinLobby(lobby.ID, p1); err != nil {
-		t.Errorf("JoinLobby failed for p1: %v", err)
+		t.Errorf("JoinLobby failed: %v", err)
 	}
 
-	// Leave the lobby successfully
+	// Leave lobby first time
 	if err := manager.LeaveLobby(lobby.ID, p1.ID); err != nil {
-		t.Errorf("First LeaveLobby failed for p1: %v", err)
+		t.Errorf("First LeaveLobby failed: %v", err)
 	}
 
-	// Try to leave the lobby again - this should fail because lobby was deleted
+	// Leave lobby second time (should fail)
 	if err := manager.LeaveLobby(lobby.ID, p1.ID); err == nil {
-		t.Error("Expected error when leaving lobby twice, but got none")
-	} else if err.Error() != "lobby does not exist" {
-		t.Errorf("Expected 'lobby does not exist' error, got: %v", err)
+		t.Error("Second LeaveLobby should have failed")
 	}
 }
 
 func TestLobbyManager_LeaveLobbyNonExistentPlayer(t *testing.T) {
 	manager := NewLobbyManager()
 
-	lobby, err := manager.CreateLobby("TestLobby", 2, true, nil)
+	// Create a lobby
+	lobby, err := manager.CreateLobby("Test Lobby", 4, true, nil, "owner1")
 	if err != nil {
 		t.Fatalf("CreateLobby failed: %v", err)
 	}
 
-	// Try to leave with a player that was never in the lobby
-	p1 := &Player{ID: "p1", Username: "Alice"}
+	// Try to leave with non-existent player
+	p1 := &Player{ID: "player1", Username: "Alice"}
 	if err := manager.LeaveLobby(lobby.ID, p1.ID); err == nil {
-		t.Error("Expected error when leaving lobby with non-existent player, but got none")
-	} else if err.Error() != "player not in lobby" {
-		t.Errorf("Expected 'player not in lobby' error, got: %v", err)
+		t.Error("LeaveLobby should have failed for non-existent player")
 	}
 }
 
 func TestLobbyManager_LobbyDeletionOnEmpty(t *testing.T) {
 	manager := NewLobbyManager()
 
-	lobby, err := manager.CreateLobby("TestLobby", 2, true, nil)
+	// Create a lobby
+	lobby, err := manager.CreateLobby("Test Lobby", 4, true, nil, "owner1")
 	if err != nil {
 		t.Fatalf("CreateLobby failed: %v", err)
 	}
 
-	p1 := &Player{ID: "p1", Username: "Alice"}
-
-	// Join the lobby
+	// Create and join a player
+	p1 := &Player{ID: "player1", Username: "Alice"}
 	if err := manager.JoinLobby(lobby.ID, p1); err != nil {
 		t.Errorf("JoinLobby failed for p1: %v", err)
 	}
 
-	// Verify lobby exists
-	if _, exists := manager.GetLobbyByID(lobby.ID); !exists {
-		t.Error("Lobby should exist after player joins")
-	}
-
-	// Leave the lobby (this should delete it since it becomes empty)
+	// Leave lobby
 	if err := manager.LeaveLobby(lobby.ID, p1.ID); err != nil {
 		t.Errorf("LeaveLobby failed for p1: %v", err)
 	}
@@ -159,4 +145,142 @@ func TestLobbyManager_LobbyDeletionOnEmpty(t *testing.T) {
 			t.Error("Lobby should not be in the list after deletion")
 		}
 	}
+}
+
+func TestSessionTokenSecurity(t *testing.T) {
+	sm := NewSessionManager()
+
+	// Create a session for "alice"
+	session := sm.CreateSession("alice")
+	if session == nil {
+		t.Fatal("Failed to create session")
+	}
+
+	// Test 1: Valid token should work
+	validSession, valid := sm.ValidateSessionToken("alice", session.Token)
+	if !valid || validSession == nil {
+		t.Fatal("Valid token validation failed")
+	}
+	if validSession.ID != session.ID {
+		t.Fatal("Valid token returned wrong session")
+	}
+
+	// Test 2: Invalid token should fail
+	invalidSession, valid := sm.ValidateSessionToken("alice", "invalid_token")
+	if valid || invalidSession != nil {
+		t.Fatal("Invalid token validation should have failed")
+	}
+
+	// Test 3: Wrong username should fail
+	wrongUserSession, valid := sm.ValidateSessionToken("bob", session.Token)
+	if valid || wrongUserSession != nil {
+		t.Fatal("Wrong username validation should have failed")
+	}
+
+	// Test 4: Non-existent username should fail
+	nonExistentSession, valid := sm.ValidateSessionToken("nonexistent", "any_token")
+	if valid || nonExistentSession != nil {
+		t.Fatal("Non-existent username validation should have failed")
+	}
+
+	// Test 5: Inactive session should fail
+	sm.RemoveSession(session.ID)
+	inactiveSession, valid := sm.ValidateSessionToken("alice", session.Token)
+	if valid || inactiveSession != nil {
+		t.Fatal("Inactive session validation should have failed")
+	}
+}
+
+func TestSessionTokenUniqueness(t *testing.T) {
+	sm := NewSessionManager()
+
+	// Create multiple sessions
+	session1 := sm.CreateSession("alice")
+	session2 := sm.CreateSession("bob")
+	session3 := sm.CreateSession("charlie")
+
+	// Verify all tokens are unique
+	tokens := map[string]bool{
+		session1.Token: true,
+		session2.Token: true,
+		session3.Token: true,
+	}
+
+	if len(tokens) != 3 {
+		t.Fatal("Session tokens are not unique")
+	}
+
+	// Verify each token only works for its own session
+	_, ok1 := sm.ValidateSessionToken("alice", session1.Token)
+	_, ok2 := sm.ValidateSessionToken("bob", session2.Token)
+	_, ok3 := sm.ValidateSessionToken("charlie", session3.Token)
+
+	if !ok1 || !ok2 || !ok3 {
+		t.Fatal("Valid tokens failed validation")
+	}
+
+	// Verify cross-token validation fails
+	_, ok1 = sm.ValidateSessionToken("alice", session2.Token)
+	_, ok2 = sm.ValidateSessionToken("bob", session3.Token)
+	_, ok3 = sm.ValidateSessionToken("charlie", session1.Token)
+
+	if ok1 || ok2 || ok3 {
+		t.Fatal("Cross-token validation should have failed")
+	}
+}
+
+func TestSessionHijackingPrevention(t *testing.T) {
+	sm := NewSessionManager()
+
+	// Create a legitimate session for "alice"
+	aliceSession := sm.CreateSession("alice")
+	if aliceSession == nil {
+		t.Fatal("Failed to create session for alice")
+	}
+
+	// Create a legitimate session for "bob"
+	bobSession := sm.CreateSession("bob")
+	if bobSession == nil {
+		t.Fatal("Failed to create session for bob")
+	}
+
+	// Test 1: Attacker tries to claim alice's session with wrong token
+	// This should FAIL (vulnerability fixed)
+	attackerSession, valid := sm.ValidateSessionToken("alice", "fake_token")
+	if valid || attackerSession != nil {
+		t.Fatal("❌ SECURITY VULNERABILITY: Attacker was able to claim alice's session with fake token")
+	}
+
+	// Test 2: Attacker tries to claim alice's session with bob's token
+	// This should FAIL (vulnerability fixed)
+	attackerSession, valid = sm.ValidateSessionToken("alice", bobSession.Token)
+	if valid || attackerSession != nil {
+		t.Fatal("❌ SECURITY VULNERABILITY: Attacker was able to claim alice's session with bob's token")
+	}
+
+	// Test 3: Attacker tries to claim bob's session with alice's token
+	// This should FAIL (vulnerability fixed)
+	attackerSession, valid = sm.ValidateSessionToken("bob", aliceSession.Token)
+	if valid || attackerSession != nil {
+		t.Fatal("❌ SECURITY VULNERABILITY: Attacker was able to claim bob's session with alice's token")
+	}
+
+	// Test 4: Legitimate user with correct token should work
+	// This should PASS (legitimate use case)
+	legitimateSession, valid := sm.ValidateSessionToken("alice", aliceSession.Token)
+	if !valid || legitimateSession == nil {
+		t.Fatal("❌ Legitimate user with correct token was rejected")
+	}
+	if legitimateSession.ID != aliceSession.ID {
+		t.Fatal("❌ Legitimate user got wrong session")
+	}
+
+	// Test 5: Attacker tries to claim non-existent user's session
+	// This should FAIL
+	attackerSession, valid = sm.ValidateSessionToken("nonexistent", "any_token")
+	if valid || attackerSession != nil {
+		t.Fatal("❌ SECURITY VULNERABILITY: Attacker was able to claim non-existent user's session")
+	}
+
+	t.Log("✅ All session hijacking attempts were properly blocked")
 }

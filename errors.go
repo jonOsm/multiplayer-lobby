@@ -11,6 +11,8 @@ const (
 	ErrorCodeUserInactive    ErrorCode = "USER_INACTIVE"
 	ErrorCodeUsernameTaken   ErrorCode = "USERNAME_TAKEN"
 	ErrorCodeInvalidUsername ErrorCode = "INVALID_USERNAME"
+	ErrorCodeInvalidToken    ErrorCode = "INVALID_TOKEN"
+	ErrorCodeUnauthorized    ErrorCode = "UNAUTHORIZED"
 
 	// Lobby-related errors
 	ErrorCodeLobbyNotFound        ErrorCode = "LOBBY_NOT_FOUND"
@@ -89,6 +91,14 @@ func ErrUserInactive(userID string) *LobbyError {
 
 func ErrUsernameTaken(username string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeUsernameTaken, "Username already taken", fmt.Sprintf("Username: %s", username))
+}
+
+func ErrInvalidToken(action string) *LobbyError {
+	return NewLobbyErrorWithDetails(ErrorCodeInvalidToken, "Invalid session token", fmt.Sprintf("Action: %s", action))
+}
+
+func ErrUnauthorized(action string) *LobbyError {
+	return NewLobbyErrorWithDetails(ErrorCodeUnauthorized, "Unauthorized access", fmt.Sprintf("Action: %s", action))
 }
 
 func ErrLobbyNotFound(lobbyID string) *LobbyError {

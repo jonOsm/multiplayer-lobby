@@ -5,12 +5,14 @@ package lobby
 type RegisterUserRequest struct {
 	Action   string `json:"action"`
 	Username string `json:"username"`
+	Token    string `json:"token,omitempty"` // Optional token for reconnection
 }
 
 type RegisterUserResponse struct {
 	Action   string `json:"action"`
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
+	Token    string `json:"token"` // Session token for future authentication
 }
 
 type CreateLobbyRequest struct {
@@ -19,6 +21,7 @@ type CreateLobbyRequest struct {
 	MaxPlayers int                    `json:"max_players"`
 	Public     bool                   `json:"public"`
 	UserID     string                 `json:"user_id"`
+	Token      string                 `json:"token"` // Session token for authentication
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -26,34 +29,40 @@ type JoinLobbyRequest struct {
 	Action  string `json:"action"`
 	LobbyID string `json:"lobby_id"`
 	UserID  string `json:"user_id"`
+	Token   string `json:"token"` // Session token for authentication
 }
 
 type LeaveLobbyRequest struct {
 	Action  string `json:"action"`
 	LobbyID string `json:"lobby_id"`
 	UserID  string `json:"user_id"`
+	Token   string `json:"token"` // Session token for authentication
 }
 
 type SetReadyRequest struct {
 	Action  string `json:"action"`
 	LobbyID string `json:"lobby_id"`
 	UserID  string `json:"user_id"`
+	Token   string `json:"token"` // Session token for authentication
 	Ready   bool   `json:"ready"`
 }
 
 type ListLobbiesRequest struct {
 	Action string `json:"action"`
+	Token  string `json:"token"` // Session token for authentication
 }
 
 type StartGameRequest struct {
 	Action  string `json:"action"`
 	LobbyID string `json:"lobby_id"`
 	UserID  string `json:"user_id"`
+	Token   string `json:"token"` // Session token for authentication
 }
 
 type GetLobbyInfoRequest struct {
 	Action  string `json:"action"`
 	LobbyID string `json:"lobby_id"`
+	Token   string `json:"token"` // Session token for authentication
 }
 
 type LobbyInfoResponse struct {

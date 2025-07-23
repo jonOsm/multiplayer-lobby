@@ -12,6 +12,22 @@ type HandlerDeps struct {
 	ConnToUserID   map[interface{}]string // The application should provide a mapping from Conn to userID
 }
 
+// validateSessionToken is a helper function to validate session tokens
+func validateSessionToken(deps *HandlerDeps, userID string, token string) (*UserSession, error) {
+	// First get the session by user ID
+	session, exists := deps.SessionManager.GetSessionByID(userID)
+	if !exists || !session.Active {
+		return nil, ErrUserInactive(userID)
+	}
+
+	// Validate the token
+	if session.Token != token {
+		return nil, ErrInvalidToken("authentication")
+	}
+
+	return session, nil
+}
+
 // RegisterUserHandler handles the "register_user" action.
 func RegisterUserHandler(deps *HandlerDeps) MessageHandler {
 	return func(conn Conn, msg IncomingMessage) error {
@@ -20,79 +36,84 @@ func RegisterUserHandler(deps *HandlerDeps) MessageHandler {
 			return conn.WriteJSON(ErrInvalidMessage("register_user").ToErrorResponse())
 		}
 
-		// Check if there's an existing session for this username
-		if existingSession, exists := deps.SessionManager.GetSessionByUsername(req.Username); exists {
-			// If user is trying to reconnect, assume their previous session is no longer valid
-			// This handles cases where the browser tab was closed abruptly
-			log.Printf("Found existing session for %s, reconnecting", req.Username)
+		// Check if there's an existing session for this username with token validation
+		if req.Token != "" {
+			// User is attempting to reconnect with a token
+			if existingSession, valid := deps.SessionManager.ValidateSessionToken(req.Username, req.Token); valid {
+				log.Printf("Valid reconnection for %s with token", req.Username)
 
-			// Force remove the old session to ensure clean state
-			deps.SessionManager.ForceRemoveSession(existingSession.ID)
+				// Update connection mapping
+				if deps.ConnToUserID != nil {
+					deps.ConnToUserID[conn] = existingSession.ID
+				}
 
-			// Create a new session with the same username
-			session := deps.SessionManager.CreateSession(req.Username)
+				// Send user_registered response first
+				registerResponse := RegisterUserResponse{
+					Action:   "user_registered",
+					UserID:   existingSession.ID,
+					Username: existingSession.Username,
+					Token:    existingSession.Token,
+				}
 
-						if deps.ConnToUserID != nil {
-				deps.ConnToUserID[conn] = session.ID
-			}
-			
-			// Send user_registered response first
-			registerResponse := RegisterUserResponse{
-				Action:   "user_registered",
-				UserID:   session.ID,
-				Username: session.Username,
-			}
-			
-			// Restore lobby membership if the user was in a lobby
-			if existingSession.LobbyID != "" {
-				session.LobbyID = existingSession.LobbyID
-				
-				// Check if lobby still exists and try to rejoin
-				lobby, exists := deps.LobbyManager.GetLobbyByID(LobbyID(existingSession.LobbyID))
-				if exists {
-					// Check if player is still in the lobby
-					playerStillInLobby := false
-					for _, p := range lobby.Players {
-						if p.Username == req.Username {
-							playerStillInLobby = true
-							break
+				// Restore lobby membership if the user was in a lobby
+				if existingSession.LobbyID != "" {
+					// Check if lobby still exists and try to rejoin
+					lobby, exists := deps.LobbyManager.GetLobbyByID(LobbyID(existingSession.LobbyID))
+					if exists {
+						// Check if player is still in the lobby
+						playerStillInLobby := false
+						for _, p := range lobby.Players {
+							if p.Username == req.Username {
+								playerStillInLobby = true
+								break
+							}
 						}
-					}
-					
-					if !playerStillInLobby {
-						// Player was disconnected, rejoin them
-						player := &Player{ID: PlayerID(session.ID), Username: session.Username}
-						err := deps.LobbyManager.JoinLobby(LobbyID(existingSession.LobbyID), player)
-						if err == nil {
-							// Send both responses: user_registered first, then lobby_state
+
+						if !playerStillInLobby {
+							// Player was disconnected, rejoin them
+							player := &Player{ID: PlayerID(existingSession.ID), Username: existingSession.Username}
+							err := deps.LobbyManager.JoinLobby(LobbyID(existingSession.LobbyID), player)
+							if err == nil {
+								// Send both responses: user_registered first, then lobby_state
+								if err := conn.WriteJSON(registerResponse); err != nil {
+									return err
+								}
+								// Send lobby state response to trigger navigation back to lobby
+								responseBuilder := NewResponseBuilder(deps.LobbyManager)
+								lobbyState := responseBuilder.BuildLobbyStateResponse(lobby)
+								return conn.WriteJSON(lobbyState)
+							} else {
+								// Failed to rejoin, clear the lobby ID
+								deps.SessionManager.ClearLobbyID(existingSession.ID)
+							}
+						} else {
+							// Player is still in lobby, send both responses
 							if err := conn.WriteJSON(registerResponse); err != nil {
 								return err
 							}
-							// Send lobby state response to trigger navigation back to lobby
+							// Send lobby state response
 							responseBuilder := NewResponseBuilder(deps.LobbyManager)
 							lobbyState := responseBuilder.BuildLobbyStateResponse(lobby)
 							return conn.WriteJSON(lobbyState)
-						} else {
-							// Failed to rejoin, clear the lobby ID
-							deps.SessionManager.ClearLobbyID(session.ID)
 						}
 					} else {
-						// Player is still in lobby, send both responses
-						if err := conn.WriteJSON(registerResponse); err != nil {
-							return err
-						}
-						// Send lobby state response
-						responseBuilder := NewResponseBuilder(deps.LobbyManager)
-						lobbyState := responseBuilder.BuildLobbyStateResponse(lobby)
-						return conn.WriteJSON(lobbyState)
+						// Lobby no longer exists, clear the lobby ID
+						deps.SessionManager.ClearLobbyID(existingSession.ID)
 					}
-				} else {
-					// Lobby no longer exists, clear the lobby ID
-					deps.SessionManager.ClearLobbyID(session.ID)
 				}
+
+				return conn.WriteJSON(registerResponse)
+			} else {
+				// Invalid token - reject the reconnection attempt
+				log.Printf("Invalid token for reconnection attempt by %s", req.Username)
+				return conn.WriteJSON(ErrInvalidToken("register_user").ToErrorResponse())
 			}
-			
-			return conn.WriteJSON(registerResponse)
+		}
+
+		// Check if username is already taken (for new registrations)
+		if deps.SessionManager.IsUsernameTaken(req.Username) {
+			log.Printf("Username %s is already taken", req.Username)
+			return conn.WriteJSON(ErrUsernameTaken("register_user").ToErrorResponse())
 		}
 
 		// Create new session for new user
@@ -100,12 +121,15 @@ func RegisterUserHandler(deps *HandlerDeps) MessageHandler {
 		if deps.ConnToUserID != nil {
 			deps.ConnToUserID[conn] = session.ID
 		}
-		log.Printf("New user registered: %s with ID: %s", req.Username, session.ID)
-		return conn.WriteJSON(RegisterUserResponse{
+
+		response := RegisterUserResponse{
 			Action:   "user_registered",
 			UserID:   session.ID,
 			Username: session.Username,
-		})
+			Token:    session.Token,
+		}
+
+		return conn.WriteJSON(response)
 	}
 }
 
@@ -117,9 +141,13 @@ func CreateLobbyHandler(deps *HandlerDeps) MessageHandler {
 			return conn.WriteJSON(ErrInvalidMessage("create_lobby").ToErrorResponse())
 		}
 
-		session, exists := deps.SessionManager.GetSessionByID(req.UserID)
-		if !exists || !session.Active {
-			return conn.WriteJSON(ErrUserInactive(req.UserID).ToErrorResponse())
+		// Validate session token
+		session, err := validateSessionToken(deps, req.UserID, req.Token)
+		if err != nil {
+			if lobbyErr, ok := err.(*LobbyError); ok {
+				return conn.WriteJSON(lobbyErr.ToErrorResponse())
+			}
+			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
 
 		createdLobby, err := deps.LobbyManager.CreateLobby(req.Name, req.MaxPlayers, req.Public, req.Metadata, session.ID)
@@ -150,12 +178,18 @@ func JoinLobbyHandler(deps *HandlerDeps) MessageHandler {
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return conn.WriteJSON(ErrInvalidMessage("join_lobby").ToErrorResponse())
 		}
-		session, exists := deps.SessionManager.GetSessionByID(req.UserID)
-		if !exists || !session.Active {
-			return conn.WriteJSON(ErrUserInactive(req.UserID).ToErrorResponse())
+
+		// Validate session token
+		session, err := validateSessionToken(deps, req.UserID, req.Token)
+		if err != nil {
+			if lobbyErr, ok := err.(*LobbyError); ok {
+				return conn.WriteJSON(lobbyErr.ToErrorResponse())
+			}
+			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
+
 		player := &Player{ID: PlayerID(session.ID), Username: session.Username}
-		err := deps.LobbyManager.JoinLobby(LobbyID(req.LobbyID), player)
+		err = deps.LobbyManager.JoinLobby(LobbyID(req.LobbyID), player)
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
@@ -181,11 +215,17 @@ func LeaveLobbyHandler(deps *HandlerDeps) MessageHandler {
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return conn.WriteJSON(ErrInvalidMessage("leave_lobby").ToErrorResponse())
 		}
-		session, exists := deps.SessionManager.GetSessionByID(req.UserID)
-		if !exists || !session.Active {
-			return conn.WriteJSON(ErrUserInactive(req.UserID).ToErrorResponse())
+
+		// Validate session token
+		session, err := validateSessionToken(deps, req.UserID, req.Token)
+		if err != nil {
+			if lobbyErr, ok := err.(*LobbyError); ok {
+				return conn.WriteJSON(lobbyErr.ToErrorResponse())
+			}
+			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
-		err := deps.LobbyManager.LeaveLobby(LobbyID(req.LobbyID), PlayerID(session.ID))
+
+		err = deps.LobbyManager.LeaveLobby(LobbyID(req.LobbyID), PlayerID(session.ID))
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
@@ -193,12 +233,10 @@ func LeaveLobbyHandler(deps *HandlerDeps) MessageHandler {
 		// Clear lobby membership in session
 		deps.SessionManager.ClearLobbyID(session.ID)
 
-		// Send a response to confirm the player has left the lobby
-		// This will trigger the client to update the UI and show the lobby list
+		// Send success response
 		return conn.WriteJSON(map[string]interface{}{
-			"action":   "lobby_left",
+			"action":   "left_lobby",
 			"lobby_id": req.LobbyID,
-			"user_id":  session.ID,
 		})
 	}
 }
@@ -210,11 +248,17 @@ func SetReadyHandler(deps *HandlerDeps) MessageHandler {
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return conn.WriteJSON(ErrInvalidMessage("set_ready").ToErrorResponse())
 		}
-		session, exists := deps.SessionManager.GetSessionByID(req.UserID)
-		if !exists || !session.Active {
-			return conn.WriteJSON(ErrUserInactive(req.UserID).ToErrorResponse())
+
+		// Validate session token
+		session, err := validateSessionToken(deps, req.UserID, req.Token)
+		if err != nil {
+			if lobbyErr, ok := err.(*LobbyError); ok {
+				return conn.WriteJSON(lobbyErr.ToErrorResponse())
+			}
+			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
-		err := deps.LobbyManager.SetPlayerReady(LobbyID(req.LobbyID), PlayerID(session.ID), req.Ready)
+
+		err = deps.LobbyManager.SetPlayerReady(LobbyID(req.LobbyID), PlayerID(session.ID), req.Ready)
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
@@ -245,10 +289,16 @@ func StartGameHandler(deps *HandlerDeps, validateGameStart func(*Lobby, string) 
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return conn.WriteJSON(ErrInvalidMessage("start_game").ToErrorResponse())
 		}
-		session, exists := deps.SessionManager.GetSessionByID(req.UserID)
-		if !exists || !session.Active {
-			return conn.WriteJSON(ErrUserInactive(req.UserID).ToErrorResponse())
+
+		// Validate session token
+		session, err := validateSessionToken(deps, req.UserID, req.Token)
+		if err != nil {
+			if lobbyErr, ok := err.(*LobbyError); ok {
+				return conn.WriteJSON(lobbyErr.ToErrorResponse())
+			}
+			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}
+
 		l, ok := deps.LobbyManager.GetLobbyByID(LobbyID(req.LobbyID))
 		if !ok {
 			return conn.WriteJSON(ErrLobbyNotFound(req.LobbyID).ToErrorResponse())
@@ -256,7 +306,7 @@ func StartGameHandler(deps *HandlerDeps, validateGameStart func(*Lobby, string) 
 		if err := validateGameStart(l, session.Username); err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeCannotStartGame, err.Error()).ToErrorResponse())
 		}
-		err := deps.LobbyManager.StartGame(LobbyID(req.LobbyID), session.ID)
+		err = deps.LobbyManager.StartGame(LobbyID(req.LobbyID), session.ID)
 		if err != nil {
 			return conn.WriteJSON(NewLobbyError(ErrorCodeInternalError, err.Error()).ToErrorResponse())
 		}

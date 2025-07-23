@@ -9,11 +9,12 @@ import (
 
 // UserSession represents an active user session (transport-agnostic)
 type UserSession struct {
-	ID       string
-	Username string
-	Active   bool      // Whether the session is currently connected
-	LobbyID  string    // The lobby ID the user was last in (empty if not in a lobby)
-	LastSeen time.Time // When the session was last active
+	ID       string    `json:"id"`
+	Username string    `json:"username"`
+	Token    string    `json:"token"`     // Secure session token for authentication
+	Active   bool      `json:"active"`    // Whether the session is currently connected
+	LobbyID  string    `json:"lobby_id"`  // The lobby ID the user was last in (empty if not in a lobby)
+	LastSeen time.Time `json:"last_seen"` // When the session was last active
 	// Consumers can associate connection objects as needed
 }
 
@@ -44,16 +45,26 @@ func (sm *SessionManager) GenerateUserID() string {
 	return hex.EncodeToString(bytes)
 }
 
+// GenerateSecureToken creates a cryptographically secure session token
+func (sm *SessionManager) GenerateSecureToken() string {
+	bytes := make([]byte, 32)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}
+
 // CreateSession creates a new user session
 func (sm *SessionManager) CreateSession(username string) *UserSession {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	userID := sm.GenerateUserID()
+	token := sm.GenerateSecureToken()
 	session := &UserSession{
 		ID:       userID,
 		Username: username,
+		Token:    token,
 		Active:   true,
+		LastSeen: time.Now(),
 	}
 
 	sm.sessions[userID] = session
@@ -71,10 +82,13 @@ func (sm *SessionManager) CreateSessionWithID(userID string, username string) *U
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	token := sm.GenerateSecureToken()
 	session := &UserSession{
 		ID:       userID,
 		Username: username,
+		Token:    token,
 		Active:   true,
+		LastSeen: time.Now(),
 	}
 
 	sm.sessions[userID] = session
@@ -85,6 +99,31 @@ func (sm *SessionManager) CreateSessionWithID(userID string, username string) *U
 	}
 
 	return session
+}
+
+// ValidateSessionToken validates a session token for a given username
+func (sm *SessionManager) ValidateSessionToken(username string, token string) (*UserSession, bool) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	userID, exists := sm.usernameToID[username]
+	if !exists {
+		return nil, false
+	}
+
+	session, exists := sm.sessions[userID]
+	if !exists || !session.Active {
+		return nil, false
+	}
+
+	// Validate token
+	if session.Token != token {
+		return nil, false
+	}
+
+	// Update last seen time
+	session.LastSeen = time.Now()
+	return session, true
 }
 
 // GetSessionByID retrieves a session by user ID
@@ -98,7 +137,8 @@ func (sm *SessionManager) GetSessionByID(userID string) (*UserSession, bool) {
 	return session, exists
 }
 
-// GetSessionByUsername retrieves a session by username
+// GetSessionByUsername retrieves a session by username (DEPRECATED - use ValidateSessionToken for security)
+// This method is kept for backward compatibility but should not be used for authentication
 func (sm *SessionManager) GetSessionByUsername(username string) (*UserSession, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -153,7 +193,8 @@ func (sm *SessionManager) IsUsernameTaken(username string) bool {
 	return exists && session.Active
 }
 
-// ReconnectSession reactivates a session for a username
+// ReconnectSession reactivates a session for a username (DEPRECATED - use ValidateSessionToken for security)
+// This method is kept for backward compatibility but should not be used for authentication
 func (sm *SessionManager) ReconnectSession(username string) (*UserSession, bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -221,3 +262,6 @@ func (sm *SessionManager) CleanupStaleSessions(maxAge time.Duration) {
 //   found, ok := sm.GetSessionByID(session.ID)
 //   taken := sm.IsUsernameTaken("alice")
 //   sm.RemoveSession(session.ID)
+//
+//   // Secure authentication:
+//   session, valid := sm.ValidateSessionToken("alice", "token123")
