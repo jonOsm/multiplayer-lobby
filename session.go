@@ -137,22 +137,6 @@ func (sm *SessionManager) GetSessionByID(userID string) (*UserSession, bool) {
 	return session, exists
 }
 
-// GetSessionByUsername retrieves a session by username (DEPRECATED - use ValidateSessionToken for security)
-// This method is kept for backward compatibility but should not be used for authentication
-func (sm *SessionManager) GetSessionByUsername(username string) (*UserSession, bool) {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	userID, exists := sm.usernameToID[username]
-	if !exists {
-		return nil, false
-	}
-	session, exists := sm.sessions[userID]
-	if exists && session.Active {
-		session.LastSeen = time.Now()
-	}
-	return session, exists
-}
-
 // RemoveSession marks a session as inactive
 func (sm *SessionManager) RemoveSession(userID string) {
 	sm.mu.Lock()
@@ -191,27 +175,6 @@ func (sm *SessionManager) IsUsernameTaken(username string) bool {
 	}
 	session, exists := sm.sessions[userID]
 	return exists && session.Active
-}
-
-// ReconnectSession reactivates a session for a username (DEPRECATED - use ValidateSessionToken for security)
-// This method is kept for backward compatibility but should not be used for authentication
-func (sm *SessionManager) ReconnectSession(username string) (*UserSession, bool) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	userID, exists := sm.usernameToID[username]
-	if !exists {
-		return nil, false
-	}
-	session, exists := sm.sessions[userID]
-	if !exists || session.Active {
-		return nil, false
-	}
-	session.Active = true
-	session.LastSeen = time.Now()
-	if sm.OnSessionReconnected != nil {
-		sm.OnSessionReconnected(session)
-	}
-	return session, true
 }
 
 // SetLobbyID sets the lobby ID for a user session
