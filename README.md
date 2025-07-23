@@ -1,16 +1,10 @@
-# Multiplayer Lobby Package
+# Multiplayer Lobby Library
 
-A production-ready, reusable Go package for managing multiplayer lobbies with automatic reconnection, session management, and comprehensive event handling. Designed for games and real-time applications.
+A Go library for building multiplayer lobby systems with session management, real-time communication, and automatic reconnection support. This library is designed to be transport-agnostic and easily integrated into games and real-time applications.
 
-## Features
+**⚠️ Early Development**: This library is still in early development. The API may change between versions.
 
-- ✅ **Automatic Reconnection**: Players automatically return to their lobby when reconnecting
-- ✅ **Session Management**: Robust user session tracking with cleanup
-- ✅ **Event-Driven Architecture**: Comprehensive callback system for all lobby events
-- ✅ **Thread-Safe**: Full concurrency support for high-performance applications
-- ✅ **Transport-Agnostic**: Works with WebSocket, HTTP, gRPC, or any transport
-- ✅ **Extensible**: Custom metadata, pluggable storage, and flexible event hooks
-- ✅ **Production-Ready**: Connection monitoring, timeout handling, and error recovery
+**📖 Demo Application**: See [lobby-demo](https://github.com/jonOsm/lobby-demo) for a complete working example with React frontend and Go backend.
 
 ## Quick Start
 
@@ -19,269 +13,8 @@ package main
 
 import (
     "fmt"
-    "time"
-    lobby "github.com/jonosm/multiplayer-lobby"
-)
-
-func main() {
-    // Create session manager for user tracking
-    sessionManager := lobby.NewSessionManager()
-    
-    // Set up event handlers
-    events := &lobby.LobbyEvents{
-        OnPlayerJoin: func(lobby *lobby.Lobby, player *lobby.Player) {
-            fmt.Printf("🎮 %s joined lobby %s\n", player.Username, lobby.Name)
-        },
-        OnPlayerLeave: func(lobby *lobby.Lobby, player *lobby.Player) {
-            fmt.Printf("👋 %s left lobby %s\n", player.Username, lobby.Name)
-        },
-        OnLobbyFull: func(lobby *lobby.Lobby) {
-            fmt.Printf("🏠 Lobby %s is now full!\n", lobby.Name)
-        },
-        OnLobbyEmpty: func(lobby *lobby.Lobby) {
-            fmt.Printf("🗑️ Lobby %s is empty, cleaning up\n", lobby.Name)
-        },
-        OnLobbyDeleted: func(lobby *lobby.Lobby) {
-            fmt.Printf("🗑️ Lobby %s was deleted\n", lobby.Name)
-        },
-    }
-    
-    // Create lobby manager with events
-    manager := lobby.NewLobbyManagerWithEvents(events)
-    
-    // Create a session for a user
-    session := sessionManager.CreateSession("alice")
-    
-    // Create a lobby
-    lobby1, _ := manager.CreateLobby("Game Room", 4, true, nil, session.ID)
-    
-    // Join players
-    p1 := &lobby.Player{ID: lobby.PlayerID(session.ID), Username: "Alice"}
-    manager.JoinLobby(lobby1.ID, p1)
-    
-    // Track lobby membership for auto-reconnection
-    sessionManager.SetLobbyID(session.ID, string(lobby1.ID))
-    
-    fmt.Printf("Created lobby: %s with %d players\n", lobby1.Name, len(lobby1.Players))
-}
-```
-
-## Core Concepts
-
-### Session Management
-
-The package includes robust session management for handling user connections and reconnections:
-
-```go
-// Create session manager
-sessionManager := lobby.NewSessionManager()
-
-// Create user session
-session := sessionManager.CreateSession("alice")
-
-// Track lobby membership for auto-reconnection
-sessionManager.SetLobbyID(session.ID, "lobby123")
-
-// Handle reconnection
-if existingSession, exists := sessionManager.GetSessionByUsername("alice"); exists {
-    // User is reconnecting - restore their lobby membership
-    if existingSession.LobbyID != "" {
-        // Auto-rejoin to previous lobby
-    }
-}
-```
-
-### Auto-Reconnection
-
-Players automatically return to their lobby when reconnecting:
-
-```go
-// When a user registers with an existing username
-func RegisterUserHandler(deps *HandlerDeps) MessageHandler {
-    return func(conn Conn, msg IncomingMessage) error {
-        // Check for existing session
-        if existingSession, exists := deps.SessionManager.GetSessionByUsername(req.Username); exists {
-            // Force remove old session and create new one
-            deps.SessionManager.ForceRemoveSession(existingSession.ID)
-            session := deps.SessionManager.CreateSession(req.Username)
-            
-            // Restore lobby membership if user was in a lobby
-            if existingSession.LobbyID != "" {
-                session.LobbyID = existingSession.LobbyID
-                // Auto-rejoin to lobby...
-            }
-        }
-    }
-}
-```
-
-### Event System
-
-Comprehensive event handling for all lobby operations:
-
-```go
-events := &lobby.LobbyEvents{
-    // Player events
-    OnPlayerJoin: func(lobby *lobby.Lobby, player *lobby.Player) {
-        // Handle player joining
-    },
-    OnPlayerLeave: func(lobby *lobby.Lobby, player *lobby.Player) {
-        // Handle player leaving
-    },
-    OnPlayerReady: func(lobby *lobby.Lobby, player *lobby.Player) {
-        // Handle ready status change
-    },
-    
-    // Lobby events
-    OnLobbyFull: func(lobby *lobby.Lobby) {
-        // Handle lobby becoming full
-    },
-    OnLobbyEmpty: func(lobby *lobby.Lobby) {
-        // Handle lobby becoming empty
-    },
-    OnLobbyDeleted: func(lobby *lobby.Lobby) {
-        // Handle lobby deletion
-    },
-    OnLobbyStateChange: func(lobby *lobby.Lobby) {
-        // Handle any lobby state change
-    },
-    
-    // Broadcasting
-    Broadcaster: func(userID string, message interface{}) {
-        // Send message to specific user
-    },
-    
-    // Custom logic
-    CanStartGame: func(lobby *lobby.Lobby, userID string) bool {
-        // Custom game start validation
-        return lobby.OwnerID == userID
-    },
-}
-```
-
-## API Reference
-
-### Core Types
-
-```go
-// Lobby represents a multiplayer lobby
-type Lobby struct {
-    ID         LobbyID                // Unique identifier
-    Name       string                 // Human-readable name
-    MaxPlayers int                    // Maximum players allowed
-    CreatedAt  time.Time              // Creation timestamp
-    Public     bool                   // Public or private
-    Players    []*Player              // List of players
-    State      LobbyState             // Current state
-    Metadata   map[string]interface{} // Custom data
-    OwnerID    string                 // Lobby owner
-}
-
-// Player represents a player in a lobby
-type Player struct {
-    ID       PlayerID               // Unique identifier
-    Username string                 // Display name
-    Ready    bool                   // Ready status
-    Metadata map[string]interface{} // Custom data
-}
-
-// UserSession represents an active user session
-type UserSession struct {
-    ID       string    // Unique identifier
-    Username string    // Username
-    Active   bool      // Connection status
-    LobbyID  string    // Current lobby (for reconnection)
-    LastSeen time.Time // Last activity timestamp
-}
-```
-
-### Session Manager
-
-```go
-// Create new session manager
-sessionManager := lobby.NewSessionManager()
-
-// Session operations
-session := sessionManager.CreateSession("username")
-session := sessionManager.CreateSessionWithID("user123", "username")
-session, exists := sessionManager.GetSessionByID("user123")
-session, exists := sessionManager.GetSessionByUsername("username")
-
-// Lobby membership tracking
-sessionManager.SetLobbyID("user123", "lobby456")
-lobbyID, exists := sessionManager.GetLobbyID("user123")
-sessionManager.ClearLobbyID("user123")
-
-// Session lifecycle
-sessionManager.RemoveSession("user123")
-sessionManager.ForceRemoveSession("user123")
-session, reconnected := sessionManager.ReconnectSession("username")
-
-// Cleanup
-sessionManager.CleanupStaleSessions(10 * time.Minute)
-```
-
-### Lobby Manager
-
-```go
-// Create lobby manager
-manager := lobby.NewLobbyManager()
-manager := lobby.NewLobbyManagerWithEvents(events)
-
-// Lobby operations
-lobby, err := manager.CreateLobby("name", 4, true, metadata, ownerID)
-err := manager.JoinLobby(lobbyID, player)
-err := manager.LeaveLobby(lobbyID, playerID)
-err := manager.DeleteLobby(lobbyID)
-
-// Player operations
-err := manager.SetPlayerReady(lobbyID, playerID, true)
-err := manager.StartGame(lobbyID, userID)
-
-// Queries
-lobby, exists := manager.GetLobbyByID(lobbyID)
-lobbies := manager.ListLobbies()
-```
-
-### Message Handlers
-
-```go
-// Create message router
-router := lobby.NewMessageRouter()
-
-// Option 1: Automatic setup (recommended)
-router := lobby.NewMessageRouter()
-router.SetupDefaultHandlersWithCustom(deps, &lobby.HandlerOptions{
-    GameStartValidator: validateGameStart,
-    ResponseBuilder:    lobby.NewResponseBuilder(manager),
-})
-
-// Option 2: Manual setup (for advanced customization)
-router := lobby.NewMessageRouter()
-router.Handle(lobby.ActionRegisterUser, lobby.RegisterUserHandler(deps))
-router.Handle(lobby.ActionCreateLobby, lobby.CreateLobbyHandler(deps))
-router.Handle(lobby.ActionJoinLobby, lobby.JoinLobbyHandler(deps))
-router.Handle(lobby.ActionLeaveLobby, lobby.LeaveLobbyHandler(deps))
-router.Handle(lobby.ActionSetReady, lobby.SetReadyHandler(deps))
-router.Handle(lobby.ActionListLobbies, lobby.ListLobbiesHandler(deps))
-router.Handle(lobby.ActionStartGame, lobby.StartGameHandler(deps, validateGameStart))
-router.Handle(lobby.ActionGetLobbyInfo, lobby.GetLobbyInfoHandler(deps, responseBuilder))
-router.Handle(lobby.ActionLogout, lobby.LogoutHandler(deps))
-
-// Dispatch messages
-err := router.Dispatch(conn, message)
-```
-
-## WebSocket Integration
-
-The package includes a complete WebSocket demo showing how to integrate with real-time applications:
-
-### Demo Server Setup
-
-```go
-package main
-
-import (
+    "log"
+    "net/http"
     "github.com/gorilla/websocket"
     lobby "github.com/jonosm/multiplayer-lobby"
 )
@@ -291,37 +24,539 @@ func main() {
     sessionManager := lobby.NewSessionManager()
     manager := lobby.NewLobbyManagerWithEvents(&lobby.LobbyEvents{
         Broadcaster: func(userID string, message interface{}) {
-            // Send message to user's WebSocket connection
-        },
-        OnLobbyDeleted: func(l *lobby.Lobby) {
-            // Clear lobby membership when lobby is deleted
-            for _, player := range l.Players {
-                sessionManager.ClearLobbyID(string(player.ID))
-            }
+            // Send message to user's connection
         },
     })
     
-    // Set up handlers
+    // Set up handler dependencies
     deps := &lobby.HandlerDeps{
         SessionManager: sessionManager,
         LobbyManager:   manager,
         ConnToUserID:   make(map[interface{}]string),
     }
     
+    // Create message router with default handlers
     router := lobby.NewMessageRouter()
-    router.Handle("register_user", lobby.RegisterUserHandler(deps))
-    router.Handle("create_lobby", lobby.CreateLobbyHandler(deps))
-    // ... register other handlers
+    router.SetupDefaultHandlersWithCustom(deps, &lobby.HandlerOptions{
+        GameStartConfig: lobby.DefaultGameStartConfig,
+        ResponseBuilder: lobby.NewResponseBuilder(manager),
+    })
     
     // WebSocket endpoint
     http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-        conn, _ := upgrader.Upgrade(w, r, nil)
+        conn, err := upgrader.Upgrade(w, r, nil)
+        if err != nil {
+            return
+        }
         
-        // Set up connection monitoring
-        conn.SetCloseHandler(func(code int, text string) error {
-            // Clean up session on connection close
-            return nil
-        })
+        for {
+            _, msg, err := conn.ReadMessage()
+            if err != nil {
+                break
+            }
+            router.Dispatch(conn, msg)
+        }
+    })
+    
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+```
+
+## Core Components
+
+### SessionManager
+
+Manages user sessions and handles reconnection logic.
+
+```go
+// Create session manager
+sessionManager := lobby.NewSessionManager()
+
+// Create new user session
+session := sessionManager.CreateSession("alice")
+// session.ID = "abc123"
+// session.Token = "secure_token_here"
+
+// Validate session token (for authentication)
+if session, valid := sessionManager.ValidateSessionToken("alice", "token"); valid {
+    // User is authenticated
+}
+
+// Handle reconnection with stored token
+if session, reconnected := sessionManager.ReconnectSession("alice", "token"); reconnected {
+    // User successfully reconnected
+}
+
+// Track lobby membership for auto-reconnection
+sessionManager.SetLobbyID(session.ID, "lobby123")
+
+// Clean up stale sessions
+sessionManager.CleanupStaleSessions(10 * time.Minute)
+```
+
+### LobbyManager
+
+Manages lobbies and player interactions.
+
+```go
+// Create lobby manager with event handlers
+manager := lobby.NewLobbyManagerWithEvents(&lobby.LobbyEvents{
+    OnPlayerJoin: func(lobby *lobby.Lobby, player *lobby.Player) {
+        fmt.Printf("%s joined %s\n", player.Username, lobby.Name)
+    },
+    OnLobbyFull: func(lobby *lobby.Lobby) {
+        fmt.Printf("Lobby %s is full!\n", lobby.Name)
+    },
+    Broadcaster: func(userID string, message interface{}) {
+        // Send message to specific user
+    },
+})
+
+// Create a lobby
+lobby, err := manager.CreateLobby("Game Room", 4, true, nil, "owner123")
+
+// Add player to lobby
+player := &lobby.Player{ID: "player123", Username: "alice"}
+err = manager.JoinLobby(lobby.ID, player)
+
+// Set player ready status
+err = manager.SetPlayerReady(lobby.ID, "player123", true)
+
+// Start the game
+err = manager.StartGame(lobby.ID, "owner123")
+```
+
+### MessageRouter
+
+Handles incoming messages and routes them to appropriate handlers.
+
+```go
+// Create router with default handlers
+router := lobby.NewMessageRouter()
+router.SetupDefaultHandlersWithCustom(deps, &lobby.HandlerOptions{
+    // Use default game start validation
+    GameStartConfig: lobby.DefaultGameStartConfig,
+    
+    // Or use custom validation
+    GameStartValidator: func(l *lobby.Lobby, username string) error {
+        // Custom validation logic
+        return nil
+    },
+    
+    // Custom response builder
+    ResponseBuilder: lobby.NewResponseBuilder(manager),
+})
+
+// Dispatch incoming messages
+err := router.Dispatch(conn, messageBytes)
+```
+
+## API Reference
+
+### Core Types
+
+#### Lobby
+```go
+type Lobby struct {
+    ID         LobbyID                // Unique identifier
+    Name       string                 // Human-readable name
+    MaxPlayers int                    // Maximum players allowed
+    CreatedAt  time.Time              // Creation timestamp
+    Public     bool                   // Public or private
+    Players    []*Player              // List of players
+    State      LobbyState             // Current state (waiting, in_game, finished)
+    Metadata   map[string]interface{} // Custom data
+    OwnerID    string                 // Lobby owner
+}
+```
+
+#### Player
+```go
+type Player struct {
+    ID       PlayerID               // Unique identifier
+    Username string                 // Display name
+    Ready    bool                   // Ready status
+    Metadata map[string]interface{} // Custom data
+}
+```
+
+#### UserSession
+```go
+type UserSession struct {
+    ID       string    // Unique identifier
+    Username string    // Username
+    Token    string    // Secure session token
+    Active   bool      // Connection status
+    LobbyID  string    // Current lobby (for reconnection)
+    LastSeen time.Time // Last activity timestamp
+}
+```
+
+### SessionManager Methods
+
+```go
+// Session creation
+CreateSession(username string) *UserSession
+CreateSessionWithID(userID, username string) *UserSession
+
+// Session validation
+ValidateSessionToken(username, token string) (*UserSession, bool)
+ReconnectSession(username, token string) (*UserSession, bool)
+
+// Session queries
+GetSessionByID(userID string) (*UserSession, bool)
+IsUsernameTaken(username string) bool
+
+// Lobby membership tracking
+SetLobbyID(userID, lobbyID string)
+GetLobbyID(userID string) (string, bool)
+ClearLobbyID(userID string)
+
+// Session lifecycle
+RemoveSession(userID string)
+ForceRemoveSession(userID string)
+CleanupStaleSessions(maxAge time.Duration)
+```
+
+### LobbyManager Methods
+
+```go
+// Lobby operations
+CreateLobby(name string, maxPlayers int, public bool, metadata map[string]interface{}, ownerID string) (*Lobby, error)
+DeleteLobby(lobbyID LobbyID) error
+GetLobbyByID(id LobbyID) (*Lobby, bool)
+ListLobbies() []*Lobby
+
+// Player operations
+JoinLobby(lobbyID LobbyID, player *Player) error
+LeaveLobby(lobbyID LobbyID, playerID PlayerID) error
+SetPlayerReady(lobbyID LobbyID, playerID PlayerID, ready bool) error
+
+// Game operations
+StartGame(lobbyID LobbyID, userID string) error
+SetLobbyState(lobbyID LobbyID, state LobbyState) error
+```
+
+### Game Start Configuration
+
+The library provides configurable game start validation:
+
+```go
+// Default configuration
+config := lobby.DefaultGameStartConfig
+// MinPlayers: 2, RequireAllReady: true, RequireOwnerOnly: false
+
+// Custom configuration
+config := &lobby.GameStartConfig{
+    MinPlayers:      4,    // Tournament mode
+    RequireAllReady:  true,
+    RequireOwnerOnly: true, // Only owner can start
+}
+
+// Convenience configurations
+tournamentConfig := lobby.NewTournamentConfig()
+practiceConfig := lobby.NewPracticeConfig()
+casualConfig := lobby.NewCasualConfig()
+```
+
+### Event System
+
+```go
+type LobbyEvents struct {
+    // Player events
+    OnPlayerJoin  func(lobby *Lobby, player *Player)
+    OnPlayerLeave func(lobby *Lobby, player *Player)
+    OnPlayerReady func(lobby *Lobby, player *Player)
+    
+    // Lobby events
+    OnLobbyFull      func(lobby *Lobby)
+    OnLobbyEmpty     func(lobby *Lobby)
+    OnLobbyDeleted   func(lobby *Lobby)
+    OnLobbyStateChange func(lobby *Lobby)
+    
+    // Broadcasting
+    Broadcaster func(userID string, message interface{})
+    
+    // Custom logic
+    CanStartGame func(lobby *Lobby, userID string) bool
+    LobbyStateBuilder func(lobby *Lobby) interface{}
+}
+```
+
+## WebSocket Message Format
+
+The library expects JSON messages with the following structure:
+
+```json
+{
+    "action": "action_name",
+    "data": {
+        // Action-specific data
+    }
+}
+```
+
+### Supported Actions
+
+#### register_user
+Register a new user or reconnect existing user.
+
+```json
+{
+    "action": "register_user",
+    "data": {
+        "username": "alice",
+        "token": "optional_reconnection_token"
+    }
+}
+```
+
+**Response:**
+```json
+{
+    "action": "user_registered",
+    "user_id": "abc123",
+    "username": "alice",
+    "token": "secure_session_token"
+}
+```
+
+#### create_lobby
+Create a new lobby.
+
+```json
+{
+    "action": "create_lobby",
+    "data": {
+        "name": "Game Room",
+        "max_players": 4,
+        "public": true,
+        "user_id": "abc123",
+        "token": "session_token"
+    }
+}
+```
+
+#### join_lobby
+Join an existing lobby.
+
+```json
+{
+    "action": "join_lobby",
+    "data": {
+        "lobby_id": "Game Room",
+        "user_id": "abc123",
+        "token": "session_token"
+    }
+}
+```
+
+#### leave_lobby
+Leave a lobby.
+
+```json
+{
+    "action": "leave_lobby",
+    "data": {
+        "lobby_id": "Game Room",
+        "user_id": "abc123",
+        "token": "session_token"
+    }
+}
+```
+
+#### set_ready
+Set player ready status.
+
+```json
+{
+    "action": "set_ready",
+    "data": {
+        "lobby_id": "Game Room",
+        "user_id": "abc123",
+        "token": "session_token",
+        "ready": true
+    }
+}
+```
+
+#### start_game
+Start the game (requires validation).
+
+```json
+{
+    "action": "start_game",
+    "data": {
+        "lobby_id": "Game Room",
+        "user_id": "abc123",
+        "token": "session_token"
+    }
+}
+```
+
+#### list_lobbies
+List available lobbies.
+
+```json
+{
+    "action": "list_lobbies",
+    "data": {
+        "token": "session_token"
+    }
+}
+```
+
+**Response:**
+```json
+{
+    "action": "lobby_list",
+    "lobbies": ["Game Room", "Practice Room"]
+}
+```
+
+#### get_lobby_info
+Get detailed information about a lobby.
+
+```json
+{
+    "action": "get_lobby_info",
+    "data": {
+        "lobby_id": "Game Room",
+        "token": "session_token"
+    }
+}
+```
+
+**Response:**
+```json
+{
+    "action": "lobby_info",
+    "lobby_id": "Game Room",
+    "name": "Game Room",
+    "players": [
+        {
+            "user_id": "abc123",
+            "username": "alice",
+            "ready": true
+        }
+    ],
+    "state": "waiting",
+    "max_players": 4,
+    "public": true
+}
+```
+
+#### logout
+Logout and remove session.
+
+```json
+{
+    "action": "logout",
+    "data": {
+        "user_id": "abc123"
+    }
+}
+```
+
+### Error Responses
+
+All actions can return error responses:
+
+```json
+{
+    "action": "error",
+    "code": "ERROR_CODE",
+    "message": "Human readable error message",
+    "details": "Additional error details"
+}
+```
+
+Common error codes:
+- `USER_NOT_FOUND` - User session not found
+- `USERNAME_TAKEN` - Username already in use
+- `LOBBY_NOT_FOUND` - Lobby doesn't exist
+- `LOBBY_FULL` - Lobby is at maximum capacity
+- `PLAYER_NOT_IN_LOBBY` - Player is not in the specified lobby
+- `INVALID_TOKEN` - Session token is invalid
+- `CANNOT_START_GAME` - Game start validation failed
+
+## Session Events
+
+The library sends session-related events:
+
+```json
+// Session created
+{
+    "event": "session_created",
+    "user_id": "abc123",
+    "username": "alice"
+}
+
+// Session reconnected
+{
+    "event": "session_reconnected",
+    "user_id": "abc123",
+    "username": "alice"
+}
+
+// Session removed
+{
+    "event": "session_removed",
+    "user_id": "abc123",
+    "username": "alice"
+}
+```
+
+## Lobby State Events
+
+When lobby state changes, the library broadcasts:
+
+```json
+{
+    "action": "lobby_state",
+    "lobby_id": "Game Room",
+    "players": [
+        {
+            "user_id": "abc123",
+            "username": "alice",
+            "ready": true
+        }
+    ],
+    "state": "waiting",
+    "metadata": {}
+}
+```
+
+## Integration Examples
+
+### WebSocket Server
+
+```go
+func main() {
+    sessionManager := lobby.NewSessionManager()
+    manager := lobby.NewLobbyManagerWithEvents(&lobby.LobbyEvents{
+        Broadcaster: func(userID string, message interface{}) {
+            // Send message to user's WebSocket connection
+            if conn, exists := connections[userID]; exists {
+                conn.WriteJSON(message)
+            }
+        },
+    })
+    
+    deps := &lobby.HandlerDeps{
+        SessionManager: sessionManager,
+        LobbyManager:   manager,
+        ConnToUserID:   connections,
+    }
+    
+    router := lobby.NewMessageRouter()
+    router.SetupDefaultHandlersWithCustom(deps, &lobby.HandlerOptions{
+        GameStartConfig: lobby.DefaultGameStartConfig,
+        ResponseBuilder: lobby.NewResponseBuilder(manager),
+    })
+    
+    http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+        conn, _ := upgrader.Upgrade(w, r, nil)
         
         for {
             _, msg, err := conn.ReadMessage()
@@ -334,141 +569,62 @@ func main() {
 }
 ```
 
-### WebSocket Message Format
+### Custom Game Start Validation
 
-```json
-// Register user
-{"action": "register_user", "data": {"username": "alice"}}
+```go
+func customGameStartValidator(l *lobby.Lobby, username string) error {
+    // Check if user is the lobby owner
+    if l.OwnerID != username {
+        return errors.New("only the lobby owner can start the game")
+    }
+    
+    // Check if all players are ready
+    for _, p := range l.Players {
+        if !p.Ready {
+            return errors.New("all players must be ready")
+        }
+    }
+    
+    // Check minimum player count
+    if len(l.Players) < 2 {
+        return errors.New("need at least 2 players")
+    }
+    
+    return nil
+}
 
-// Create lobby
-{"action": "create_lobby", "data": {
-    "name": "Game Room",
-    "max_players": 4,
-    "public": true,
-    "user_id": "user123"
-}}
+// Use in router setup
+router.SetupDefaultHandlersWithCustom(deps, &lobby.HandlerOptions{
+    GameStartValidator: customGameStartValidator,
+})
+```
 
-// Join lobby
-{"action": "join_lobby", "data": {
-    "lobby_id": "Game Room",
-    "user_id": "user123"
-}}
+### Session Cleanup
 
-// Set ready status
-{"action": "set_ready", "data": {
-    "lobby_id": "Game Room",
-    "user_id": "user123",
-    "ready": true
-}}
-
-// Start game
-{"action": "start_game", "data": {
-    "lobby_id": "Game Room",
-    "user_id": "user123"
-}}
+```go
+// Periodic cleanup of stale sessions
+go func() {
+    ticker := time.NewTicker(5 * time.Minute)
+    defer ticker.Stop()
+    for {
+        select {
+        case <-ticker.C:
+            sessionManager.CleanupStaleSessions(10 * time.Minute)
+        }
+    }
+}()
 ```
 
 ## Testing
 
-### Unit Tests
-
 ```bash
-cd multiplayer-lobby
+# Run unit tests
 go test ./...
+
+# Run with coverage
+go test -cover ./...
 ```
-
-### Integration Testing
-
-The package includes comprehensive integration tests:
-
-```bash
-cd lobby-demo
-npm install -g wscat  # For WebSocket testing
-cd server && go run main.go
-```
-
-Then test with wscat:
-```bash
-wscat -c ws://localhost:8080/ws
-```
-
-### Auto-Reconnection Test
-
-```javascript
-// Test auto-reconnection functionality
-const WebSocket = require('ws');
-
-async function testAutoReconnection() {
-    // Connect and register
-    const ws1 = new WebSocket('ws://localhost:8080/ws');
-    ws1.send(JSON.stringify({
-        action: 'register_user',
-        data: { username: 'alice' }
-    }));
-    
-    // Create lobby
-    ws1.send(JSON.stringify({
-        action: 'create_lobby',
-        data: {
-            name: 'Test Lobby',
-            max_players: 4,
-            public: true,
-            user_id: 'user123'
-        }
-    }));
-    
-    // Close connection
-    ws1.close();
-    
-    // Reconnect with same username
-    const ws2 = new WebSocket('ws://localhost:8080/ws');
-    ws2.send(JSON.stringify({
-        action: 'register_user',
-        data: { username: 'alice' }
-    }));
-    
-    // Should automatically rejoin lobby
-}
-```
-
-## Architecture
-
-The package follows a clean, layered architecture:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Application Layer                        │
-│  (WebSocket Server, HTTP API, Game Engine, etc.)           │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│                    Service Layer                            │
-│  (SessionManager, LobbyManager, Event System)              │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│                    Domain Layer                             │
-│  (Lobby, Player, Session, Business Logic)                  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│                    Repository Layer                         │
-│  (In-Memory Storage, Pluggable Backends)                   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Key Design Principles
-
-- **Transport-Agnostic**: No networking code in the library
-- **Event-Driven**: Comprehensive callback system for integration
-- **Thread-Safe**: Full concurrency support
-- **Extensible**: Custom metadata, pluggable storage, flexible events
-- **Production-Ready**: Connection monitoring, error handling, cleanup
-
-## Contributing
-
-Contributions are welcome! The package is designed to be easily extensible. Please see the [contributing guidelines](CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+MIT License - see LICENSE file for details. 
