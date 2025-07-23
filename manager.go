@@ -2,9 +2,100 @@ package lobby
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
+
+// GameStartConfig defines configurable parameters for game start validation
+type GameStartConfig struct {
+	MinPlayers       int  // Minimum number of players required to start (default: 2)
+	RequireAllReady  bool // Whether all players must be ready to start (default: true)
+	RequireOwnerOnly bool // Whether only the lobby owner can start the game (default: false)
+}
+
+// DefaultGameStartConfig provides sensible defaults for game start validation
+var DefaultGameStartConfig = &GameStartConfig{
+	MinPlayers:       2,
+	RequireAllReady:  true,
+	RequireOwnerOnly: false,
+}
+
+// ConfigurableGameStartValidator creates a validation function based on the provided configuration
+func ConfigurableGameStartValidator(config *GameStartConfig) func(*Lobby, string) error {
+	if config == nil {
+		config = DefaultGameStartConfig
+	}
+
+	return func(l *Lobby, username string) error {
+		// Check if lobby is in waiting state
+		if l.State != LobbyWaiting {
+			return errors.New("lobby is not in waiting state")
+		}
+
+		// Check if there are enough players
+		if len(l.Players) < config.MinPlayers {
+			return fmt.Errorf("need at least %d players to start the game", config.MinPlayers)
+		}
+
+		// Check if all players are ready (if required)
+		if config.RequireAllReady {
+			for _, p := range l.Players {
+				if !p.Ready {
+					return errors.New("all players must be ready to start the game")
+				}
+			}
+		}
+
+		// Check if only owner can start (if required)
+		if config.RequireOwnerOnly && l.OwnerID != username {
+			return errors.New("only the lobby owner can start the game")
+		}
+
+		// Check if the requesting player is in the lobby
+		playerFound := false
+		for _, p := range l.Players {
+			if p.Username == username {
+				playerFound = true
+				break
+			}
+		}
+		if !playerFound {
+			return errors.New("player not found in lobby")
+		}
+
+		return nil
+	}
+}
+
+// Convenience functions for common configurations
+
+// NewTournamentConfig creates a configuration suitable for tournament-style games
+func NewTournamentConfig() *GameStartConfig {
+	return &GameStartConfig{
+		MinPlayers:       4,
+		RequireAllReady:  true,
+		RequireOwnerOnly: true,
+	}
+}
+
+// NewPracticeConfig creates a configuration suitable for practice modes
+func NewPracticeConfig() *GameStartConfig {
+	return &GameStartConfig{
+		MinPlayers:       1,
+		RequireAllReady:  false,
+		RequireOwnerOnly: false,
+	}
+}
+
+// NewCasualConfig creates a configuration suitable for casual games
+func NewCasualConfig() *GameStartConfig {
+	return &GameStartConfig{
+		MinPlayers:       2,
+		RequireAllReady:  false,
+		RequireOwnerOnly: false,
+	}
+}
 
 // LobbyManager manages lobbies and players in a thread-safe way.
 type LobbyManager struct {

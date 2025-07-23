@@ -39,7 +39,17 @@ func RegisterUserHandler(deps *HandlerDeps) MessageHandler {
 		// Check if there's an existing session for this username with token validation
 		if req.Token != "" {
 			// User is attempting to reconnect with a token
-			if existingSession, valid := deps.SessionManager.ValidateSessionToken(req.Username, req.Token); valid {
+			// First try normal validation, then try reconnection if session is inactive
+			var existingSession *UserSession
+			var valid bool
+			
+			existingSession, valid = deps.SessionManager.ValidateSessionToken(req.Username, req.Token)
+			if !valid {
+				// Try reconnection if normal validation failed
+				existingSession, valid = deps.SessionManager.ReconnectSession(req.Username, req.Token)
+			}
+			
+			if valid {
 				log.Printf("Valid reconnection for %s with token", req.Username)
 
 				// Update connection mapping

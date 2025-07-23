@@ -126,6 +126,38 @@ func (sm *SessionManager) ValidateSessionToken(username string, token string) (*
 	return session, true
 }
 
+// ReconnectSession allows a user to reconnect with a valid token, even if their session was inactive
+func (sm *SessionManager) ReconnectSession(username string, token string) (*UserSession, bool) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	userID, exists := sm.usernameToID[username]
+	if !exists {
+		return nil, false
+	}
+
+	session, exists := sm.sessions[userID]
+	if !exists {
+		return nil, false
+	}
+
+	// Validate token
+	if session.Token != token {
+		return nil, false
+	}
+
+	// Reactivate the session and update last seen time
+	session.Active = true
+	session.LastSeen = time.Now()
+
+	// Trigger reconnection event if handler is set
+	if sm.OnSessionReconnected != nil {
+		sm.OnSessionReconnected(session)
+	}
+
+	return session, true
+}
+
 // GetSessionByID retrieves a session by user ID
 func (sm *SessionManager) GetSessionByID(userID string) (*UserSession, bool) {
 	sm.mu.RLock()

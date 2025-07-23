@@ -81,10 +81,15 @@ func (r *MessageRouter) SetupDefaultHandlersWithCustom(deps *HandlerDeps, option
 	r.Handle(ActionSetReady, SetReadyHandler(deps))
 	r.Handle(ActionListLobbies, ListLobbiesHandler(deps))
 
-	// Use custom validation if provided, otherwise use default
+	// Use custom validation if provided, otherwise use configurable validation
 	gameStartValidator := options.GameStartValidator
 	if gameStartValidator == nil {
-		gameStartValidator = func(l *Lobby, username string) error { return nil }
+		// Use configurable validation with provided config or defaults
+		config := options.GameStartConfig
+		if config == nil {
+			config = DefaultGameStartConfig
+		}
+		gameStartValidator = ConfigurableGameStartValidator(config)
 	}
 	r.Handle(ActionStartGame, StartGameHandler(deps, gameStartValidator))
 
@@ -102,7 +107,8 @@ func (r *MessageRouter) SetupDefaultHandlersWithCustom(deps *HandlerDeps, option
 
 // HandlerOptions allows customization of specific handlers
 type HandlerOptions struct {
-	GameStartValidator func(*Lobby, string) error
+	GameStartConfig    *GameStartConfig // Configurable defaults for game start validation
+	GameStartValidator func(*Lobby, string) error // Complete override for game start validation
 	ResponseBuilder    *ResponseBuilder
 }
 
