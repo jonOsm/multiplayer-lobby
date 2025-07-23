@@ -62,7 +62,55 @@ func main() {
 }
 ```
 
+## User Flow
+
+The typical user journey through the lobby system:
+
+```mermaid
+graph LR
+    A[User Connects] --> B[Register]
+    B --> C[Create/Join Lobby]
+    C --> D[Set Ready]
+    D --> E[Start Game]
+    
+    A1[WebSocket<br/>Connection] -.-> A
+    B1[Session Token<br/>Authentication] -.-> B
+    C1[Lobby State<br/>Management] -.-> C
+    D1[Ready Status<br/>Management] -.-> D
+    E1[Game State<br/>Transition] -.-> E
+    
+    style A fill:#e3f2fd,color:#1565c0
+    style B fill:#f3e5f5,color:#4a148c
+    style C fill:#e8f5e8,color:#1b5e20
+    style D fill:#fff3e0,color:#e65100
+    style E fill:#fce4ec,color:#880e4f
+    style A1 fill:#f5f5f5,color:#424242
+    style B1 fill:#f5f5f5,color:#424242
+    style C1 fill:#f5f5f5,color:#424242
+    style D1 fill:#f5f5f5,color:#424242
+    style E1 fill:#f5f5f5,color:#424242
+```
+
 ## Core Components
+
+The library consists of three main components that work together to provide a complete lobby system:
+
+```mermaid
+graph TB
+    SM[SessionManager<br/>• User sessions<br/>• Reconnection<br/>• Token auth]
+    LM[LobbyManager<br/>• Lobby state<br/>• Player mgmt<br/>• Game start]
+    MR[MessageRouter<br/>• Route messages<br/>• Handle actions<br/>• Send responses]
+    HD[HandlerDeps<br/>• SessionManager<br/>• LobbyManager<br/>• ConnToUserID mapping]
+    
+    SM --> HD
+    LM --> HD
+    MR --> HD
+    
+    style SM fill:#e1f5fe,color:#0d47a1
+    style LM fill:#f3e5f5,color:#4a148c
+    style MR fill:#e8f5e8,color:#1b5e20
+    style HD fill:#fff3e0,color:#e65100
+```
 
 ### SessionManager
 
