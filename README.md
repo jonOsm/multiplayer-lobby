@@ -1,4 +1,4 @@
-# Multiplayer Lobby Library
+# Ready Up - Multiplayer Lobby Library
 
 A Go library for building multiplayer lobby systems with session management, real-time communication, and automatic reconnection support. This library is designed to be transport-agnostic and easily integrated into games and real-time applications.
 
