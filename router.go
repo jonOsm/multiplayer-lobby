@@ -66,8 +66,8 @@ func (r *MessageRouter) SetupDefaultHandlers(deps *HandlerDeps) {
 	r.Handle(ActionLeaveLobby, LeaveLobbyHandler(deps))
 	r.Handle(ActionSetReady, SetReadyHandler(deps))
 	r.Handle(ActionListLobbies, ListLobbiesHandler(deps))
-	r.Handle(ActionStartGame, StartGameHandler(deps, nil))       // Default validation
-	r.Handle(ActionGetLobbyInfo, GetLobbyInfoHandler(deps, nil)) // Default response builder
+	r.Handle(ActionStartGame, StartGameHandler(deps, nil))
+	r.Handle(ActionGetLobbyInfo, GetLobbyInfoHandler(deps, nil))
 	r.Handle(ActionLogout, LogoutHandler(deps))
 }
 
@@ -81,10 +81,8 @@ func (r *MessageRouter) SetupDefaultHandlersWithCustom(deps *HandlerDeps, option
 	r.Handle(ActionSetReady, SetReadyHandler(deps))
 	r.Handle(ActionListLobbies, ListLobbiesHandler(deps))
 
-	// Use custom validation if provided, otherwise use configurable validation
 	gameStartValidator := options.GameStartValidator
 	if gameStartValidator == nil {
-		// Use configurable validation with provided config or defaults
 		config := options.GameStartConfig
 		if config == nil {
 			config = DefaultGameStartConfig
@@ -93,7 +91,6 @@ func (r *MessageRouter) SetupDefaultHandlersWithCustom(deps *HandlerDeps, option
 	}
 	r.Handle(ActionStartGame, StartGameHandler(deps, gameStartValidator))
 
-	// Use custom response builder if provided, otherwise use default
 	responseBuilder := options.ResponseBuilder
 	if responseBuilder == nil {
 		responseBuilder = NewResponseBuilder(deps.LobbyManager)
@@ -122,7 +119,7 @@ func (r *MessageRouter) Dispatch(conn Conn, rawMsg []byte) error {
 	if !ok {
 		return conn.WriteJSON(ErrUnknownAction(msg.Action).ToErrorResponse())
 	}
-	// Apply middleware chain
+
 	finalHandler := handler
 	for i := len(r.middleware) - 1; i >= 0; i-- {
 		finalHandler = r.middleware[i](finalHandler)

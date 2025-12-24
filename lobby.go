@@ -19,13 +19,13 @@ const (
 
 // Lobby represents a multiplayer lobby.
 type Lobby struct {
-	ID         LobbyID                // Unique identifier for the lobby
-	Name       string                 // Human-readable lobby name
-	MaxPlayers int                    // Maximum number of players allowed
-	CreatedAt  time.Time              // Lobby creation timestamp
-	Public     bool                   // Whether the lobby is public or private
-	Players    []*Player              // List of players in the lobby
-	State      LobbyState             // Current state of the lobby
-	Metadata   map[string]interface{} // Custom fields for extensibility
-	OwnerID    string                 // User ID of the lobby creator/owner
+	ID         LobbyID
+	Name       string
+	MaxPlayers int
+	CreatedAt  time.Time
+	Public     bool
+	Players    []*Player
+	State      LobbyState
+	Metadata   map[string]interface{}
+	OwnerID    string
 }

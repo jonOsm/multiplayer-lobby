@@ -28,17 +28,14 @@ func ConfigurableGameStartValidator(config *GameStartConfig) func(*Lobby, string
 	}
 
 	return func(l *Lobby, username string) error {
-		// Check if lobby is in waiting state
 		if l.State != LobbyWaiting {
 			return errors.New("lobby is not in waiting state")
 		}
 
-		// Check if there are enough players
 		if len(l.Players) < config.MinPlayers {
 			return fmt.Errorf("need at least %d players to start the game", config.MinPlayers)
 		}
 
-		// Check if all players are ready (if required)
 		if config.RequireAllReady {
 			for _, p := range l.Players {
 				if !p.Ready {
@@ -47,12 +44,10 @@ func ConfigurableGameStartValidator(config *GameStartConfig) func(*Lobby, string
 			}
 		}
 
-		// Check if only owner can start (if required)
 		if config.RequireOwnerOnly && l.OwnerID != username {
 			return errors.New("only the lobby owner can start the game")
 		}
 
-		// Check if the requesting player is in the lobby
 		playerFound := false
 		for _, p := range l.Players {
 			if p.Username == username {
@@ -143,7 +138,6 @@ func (m *LobbyManager) CreateLobby(name string, maxPlayers int, public bool, met
 	if m.Events != nil && m.Events.OnLobbyStateChange != nil {
 		m.Events.OnLobbyStateChange(lobby)
 	}
-	// Automatically broadcast lobby state
 	m.broadcastLobbyState(lobby)
 	return lobby, nil
 }
@@ -177,7 +171,6 @@ func (m *LobbyManager) JoinLobby(lobbyID LobbyID, player *Player) error {
 			m.Events.OnLobbyStateChange(lobby)
 		}
 	}
-	// Automatically broadcast lobby state
 	m.broadcastLobbyState(lobby)
 	return nil
 }
@@ -228,9 +221,8 @@ func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 			m.Events.OnLobbyStateChange(lobby)
 		}
 	}
-	// Automatically broadcast lobby state
 	m.broadcastLobbyState(lobby)
-	// If lobby becomes empty, delete it
+
 	if len(lobby.Players) == 0 {
 		if m.Events != nil && m.Events.OnLobbyDeleted != nil {
 			m.Events.OnLobbyDeleted(lobby)
@@ -240,7 +232,7 @@ func (m *LobbyManager) LeaveLobby(lobbyID LobbyID, playerID PlayerID) error {
 	return nil
 }
 
-// Add a method to toggle ready status and trigger events
+// SetPlayerReady updates a player's ready status in a lobby.
 func (m *LobbyManager) SetPlayerReady(lobbyID LobbyID, playerID PlayerID, ready bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -301,12 +293,11 @@ func (m *LobbyManager) StartGame(lobbyID LobbyID, userID string) error {
 	if !exists {
 		return errors.New("lobby does not exist")
 	}
-	// Check permission
+
 	canStart := false
 	if m.Events != nil && m.Events.CanStartGame != nil {
 		canStart = m.Events.CanStartGame(lobby, userID)
 	} else {
-		// Default: only owner can start
 		canStart = (lobby.OwnerID == userID)
 	}
 	if !canStart {
@@ -342,7 +333,7 @@ func (m *LobbyManager) GetLobbyByID(id LobbyID) (*Lobby, bool) {
 	return lobby, exists
 }
 
-// Helper to broadcast lobby state after a change
+// broadcastLobbyState broadcasts the current lobby state to all players.
 func (m *LobbyManager) broadcastLobbyState(lobby *Lobby) {
 	if m.Events == nil || m.Events.Broadcaster == nil {
 		return

@@ -80,54 +80,54 @@ func NewLobbyErrorWithDetails(code ErrorCode, message, details string) *LobbyErr
 	}
 }
 
-// Predefined error constructors
+// ErrUserNotFound returns an error for when a user is not found.
 func ErrUserNotFound(userID string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeUserNotFound, "User not found", fmt.Sprintf("User ID: %s", userID))
 }
-
+// ErrUserInactive returns an error for when a user is inactive.
 func ErrUserInactive(userID string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeUserInactive, "User is inactive", fmt.Sprintf("User ID: %s", userID))
 }
-
+// ErrUsernameTaken returns an error for when a username is already in use.
 func ErrUsernameTaken(username string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeUsernameTaken, "Username already taken", fmt.Sprintf("Username: %s", username))
 }
-
+// ErrInvalidToken returns an error for invalid session tokens.
 func ErrInvalidToken(action string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeInvalidToken, "Invalid session token", fmt.Sprintf("Action: %s", action))
 }
-
+// ErrUnauthorized returns an error for unauthorized access.
 func ErrUnauthorized(action string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeUnauthorized, "Unauthorized access", fmt.Sprintf("Action: %s", action))
 }
-
+// ErrLobbyNotFound returns an error for when a lobby is not found.
 func ErrLobbyNotFound(lobbyID string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeLobbyNotFound, "Lobby not found", fmt.Sprintf("Lobby ID: %s", lobbyID))
 }
-
+// ErrLobbyFull returns an error for when a lobby is at capacity.
 func ErrLobbyFull(lobbyID string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeLobbyFull, "Lobby is full", fmt.Sprintf("Lobby ID: %s", lobbyID))
 }
-
+// ErrPlayerNotInLobby returns an error for when a player is not in a lobby.
 func ErrPlayerNotInLobby(playerID, lobbyID string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodePlayerNotInLobby, "Player not in lobby",
 		fmt.Sprintf("Player ID: %s, Lobby ID: %s", playerID, lobbyID))
 }
-
+// ErrNotEnoughPlayers returns an error for insufficient players to start.
 func ErrNotEnoughPlayers(required, actual int) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeNotEnoughPlayers, "Not enough players to start game",
 		fmt.Sprintf("Required: %d, Actual: %d", required, actual))
 }
-
+// ErrNotAllPlayersReady returns an error when not all players are ready.
 func ErrNotAllPlayersReady() *LobbyError {
 	return NewLobbyError(ErrorCodeNotAllPlayersReady, "All players must be ready to start the game")
 }
-
+// ErrInvalidMessage returns an error for invalid message format.
 func ErrInvalidMessage(action string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeInvalidMessage, "Invalid message format",
 		fmt.Sprintf("Action: %s", action))
 }
-
+// ErrUnknownAction returns an error for unrecognized actions.
 func ErrUnknownAction(action string) *LobbyError {
 	return NewLobbyErrorWithDetails(ErrorCodeUnknownAction, "Unknown action",
 		fmt.Sprintf("Action: %s", action))

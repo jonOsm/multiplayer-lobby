@@ -7,24 +7,22 @@ import (
 	"time"
 )
 
-// UserSession represents an active user session (transport-agnostic)
+// UserSession represents an active user session.
+// It is transport-agnostic and can be associated with any connection type.
 type UserSession struct {
 	ID       string    `json:"id"`
 	Username string    `json:"username"`
-	Token    string    `json:"token"`     // Secure session token for authentication
-	Active   bool      `json:"active"`    // Whether the session is currently connected
-	LobbyID  string    `json:"lobby_id"`  // The lobby ID the user was last in (empty if not in a lobby)
-	LastSeen time.Time `json:"last_seen"` // When the session was last active
-	// Consumers can associate connection objects as needed
+	Token    string    `json:"token"`
+	Active   bool      `json:"active"`
+	LobbyID  string    `json:"lobby_id"`
+	LastSeen time.Time `json:"last_seen"`
 }
 
-// SessionManager manages active user sessions (transport-agnostic)
+// SessionManager manages active user sessions in a thread-safe manner.
 type SessionManager struct {
-	mu           sync.RWMutex
-	sessions     map[string]*UserSession // userID -> session
-	usernameToID map[string]string       // username -> userID
-
-	// Session event hooks
+	mu                   sync.RWMutex
+	sessions             map[string]*UserSession
+	usernameToID         map[string]string
 	OnSessionCreated     func(session *UserSession)
 	OnSessionReconnected func(session *UserSession)
 	OnSessionRemoved     func(session *UserSession)
@@ -116,12 +114,10 @@ func (sm *SessionManager) ValidateSessionToken(username string, token string) (*
 		return nil, false
 	}
 
-	// Validate token
 	if session.Token != token {
 		return nil, false
 	}
 
-	// Update last seen time
 	session.LastSeen = time.Now()
 	return session, true
 }
@@ -141,16 +137,13 @@ func (sm *SessionManager) ReconnectSession(username string, token string) (*User
 		return nil, false
 	}
 
-	// Validate token
 	if session.Token != token {
 		return nil, false
 	}
 
-	// Reactivate the session and update last seen time
 	session.Active = true
 	session.LastSeen = time.Now()
 
-	// Trigger reconnection event if handler is set
 	if sm.OnSessionReconnected != nil {
 		sm.OnSessionReconnected(session)
 	}
@@ -250,13 +243,3 @@ func (sm *SessionManager) CleanupStaleSessions(maxAge time.Duration) {
 		}
 	}
 }
-
-// API usage:
-//   sm := NewSessionManager()
-//   session := sm.CreateSession("alice")
-//   found, ok := sm.GetSessionByID(session.ID)
-//   taken := sm.IsUsernameTaken("alice")
-//   sm.RemoveSession(session.ID)
-//
-//   // Secure authentication:
-//   session, valid := sm.ValidateSessionToken("alice", "token123")

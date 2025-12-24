@@ -50,7 +50,7 @@ func (rb *ResponseBuilder) BuildLobbyInfoResponse(l *Lobby) LobbyInfoResponse {
 			UserID:       string(p.ID),
 			Username:     p.Username,
 			Ready:        p.Ready,
-			CanStartGame: false, // Not needed for lobby info
+			CanStartGame: false,
 		})
 	}
 
